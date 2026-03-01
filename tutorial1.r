@@ -44,3 +44,23 @@ l4 <- list("beer",4.3,l1,"KOPER",12)
 l4[[3]][[3]] <- -2
 l5 <- list(4,5.3,1.4,0,-3,3,3)
 sum(unlist(l5))
+
+#MATRICES
+m1 <- matrix(1:9, nrow = 3)
+m2 <- matrix(9:1, ncol = 3)
+m3 <- matrix(1:4, nrow = 2, ncol = 6)
+m3
+m1 + m2
+m3 - 10
+m1 * 3
+rbind(cbind(m1,m2),m3)
+m1^2
+
+dim(m3)
+m1[2,1] <- -1
+m2[,2]
+m2[1:2,1:2]<-0
+m1[2:nrow(m1),] <- 5
+m1[-1,] <- 5
+m4 <- matrix(c("a", "b", "c", "d"), ncol=2, byrow = TRUE)
+cbind(m4,m3)
