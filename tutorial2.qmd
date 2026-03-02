@@ -1,0 +1,683 @@
+---
+title: "Session 2: Working with Data Structures"
+subtitle: "R Programming Workbook"
+author: "R Programming Course"
+date: today
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    toc-location: left
+    code-fold: show
+    code-tools: true
+    code-overflow: wrap
+    theme: cosmo
+    self-contained: true
+execute:
+  echo: true
+  warning: false
+  message: false
+---
+
+::: {.callout-note title="Learning Objectives"}
+By the end of this session, you will be able to:
+
+**Part 1: Indexing and Subsetting**
+
+- Subset vectors and data frames by position, logic, and name
+- Combine conditions with `&`, `|`, and `%in%`
+- Replace values conditionally
+
+**Part 2: Control Flow**
+
+- Write if/else statements for scalar conditions
+- Use `ifelse()` for vectorized conditions
+- Build for and while loops with proper pre-allocation
+
+**Part 3: Functions**
+
+- Write functions with default arguments and input validation
+- Understand lexical scoping
+- Use lambda syntax `\(x)` and closures
+:::
+
+```{r}
+students <- data.frame(
+  name = c("Alice", "Bob", "Carlos", "Diana", "Elena", "Frank"),
+  age = c(21, 23, 22, 20, 24, 21),
+  major = c("CS", "Math", "CS", "Stats", "CS", "Math"),
+  gpa = c(3.8, 3.2, 3.5, 3.9, 3.1, 3.6),
+  year = c(3, 4, 3, 2, 4, 3)
+)
+```
+
+## Part 1: Indexing and Subsetting
+
+### 1.1 Numeric Indexing
+
+Select by position. R is 1-indexed.
+
+```{r}
+x <- c(10, 20, 30, 40, 50)
+x[1]           # first element
+x[c(1, 3, 5)] # multiple positions
+x[2:4]        # range
+x[-1]          # all except first
+x[-c(2, 4)]   # all except 2nd and 4th
+```
+
+Negative indices exclude. You cannot mix positive and negative in the same bracket.
+
+### 1.2 Logical Indexing
+
+Select by condition:
+
+```{r}
+x <- c(10, 20, 30, 40, 50)
+x[x > 25]
+x[x >= 20 & x <= 40]
+```
+
+The condition produces a TRUE/FALSE vector the same length as `x`.
+
+### 1.3 Name-Based Indexing
+
+```{r}
+grades <- c(alice = 90, bob = 85, carlos = 92)
+grades["alice"]
+grades[c("bob", "carlos")]
+```
+
+### 1.4 Data Frame Subsetting
+
+```{r}
+# Rows by condition
+students[students$major == "CS", ]
+
+# Specific columns
+students[, c("name", "gpa")]
+
+# Both
+students[students$gpa > 3.5, c("name", "gpa", "major")]
+
+# Using %in% for multiple values
+students[students$major %in% c("CS", "Stats"), ]
+```
+
+### 1.5 Conditional Replacement
+
+```{r}
+x <- c(1, -2, 3, -4, 5)
+x[x < 0] <- 0
+x
+```
+
+### Your Turn: Exercise 1.1
+
+```{r}
+temps <- c(72, 65, 80, 55, 90, 78, 62, 85, 70, 95)
+```
+
+1. Extract the 3rd, 5th, and 8th temperatures
+2. Get all temperatures above 75
+3. Replace any temperature below 65 with 65 (a floor)
+4. Find the positions of temperatures above 80
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+#| eval: false
+temps[c(3, 5, 8)]
+temps[temps > 75]
+temps[temps < 65] <- 65
+which(temps > 80)
+```
+
+### Your Turn: Exercise 1.2
+
+Using the `students` data frame:
+
+1. Find students who are juniors (year 3) with GPA above 3.4
+2. Get just the names of all Math majors
+3. Find the student with the lowest GPA
+4. Create a subset of only CS majors, sorted by GPA descending
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+#| eval: false
+# 1
+students[students$year == 3 & students$gpa > 3.4, ]
+
+# 2
+students$name[students$major == "Math"]
+
+# 3
+students[which.min(students$gpa), ]
+
+# 4
+cs <- students[students$major == "CS", ]
+cs[order(cs$gpa, decreasing = TRUE), ]
+```
+
+::: {.callout-warning title="Common Mistake"}
+**Forgetting the comma in data frame subsetting.**
+
+```{r}
+#| error: true
+students[students$major == "CS"]  # missing comma!
+```
+
+For data frames, you need `[rows, columns]`. Without the comma, R tries to subset columns by the logical vector, which gives unexpected results or errors.
+
+Correct: `students[students$major == "CS", ]`
+:::
+
+### Your Turn: Exercise 1.3
+
+```{r}
+products <- data.frame(
+  item = c("laptop", "mouse", "keyboard", "monitor", "headset",
+           "webcam", "speaker", "cable"),
+  price = c(999, 25, 75, 400, 150, 80, 120, 10),
+  category = c("computer", "accessory", "accessory", "computer",
+               "accessory", "accessory", "audio", "accessory")
+)
+```
+
+1. Find all accessories that cost more than $50
+2. What is the average price of items in the "computer" category?
+3. Replace any price below $20 with $20 (minimum price policy)
+4. Find items that are NOT in the "accessory" category
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+#| eval: false
+# 1
+products[products$category == "accessory" & products$price > 50, ]
+
+# 2
+mean(products$price[products$category == "computer"])
+
+# 3
+products$price[products$price < 20] <- 20
+
+# 4
+products[products$category != "accessory", ]
+# or: products[!products$category %in% "accessory", ]
+```
+
+---
+
+## Part 2: Control Flow
+
+### 2.1 if/else
+
+```{r}
+score <- 78
+
+if (score >= 90) {
+  grade <- "A"
+} else if (score >= 80) {
+  grade <- "B"
+} else if (score >= 70) {
+  grade <- "C"
+} else {
+  grade <- "F"
+}
+grade
+```
+
+`if` evaluates a single TRUE/FALSE value. It does not work on vectors.
+
+### 2.2 Vectorized ifelse()
+
+```{r}
+scores <- c(85, 92, 67, 73, 95, 58)
+ifelse(scores >= 70, "pass", "fail")
+```
+
+Nested `ifelse()` for multiple categories:
+
+```{r}
+ifelse(scores >= 90, "A",
+ifelse(scores >= 80, "B",
+ifelse(scores >= 70, "C", "F")))
+```
+
+### 2.3 for Loops
+
+```{r}
+for (i in 1:5) {
+  cat("Square of", i, "is", i^2, "\n")
+}
+```
+
+Use `seq_along()` instead of `1:length()`:
+
+```{r}
+x <- c(10, 20, 30)
+for (i in seq_along(x)) {
+  cat("Element", i, ":", x[i], "\n")
+}
+```
+
+### 2.4 Pre-allocating Output
+
+```{r}
+# Good: pre-allocate
+n <- 10
+result <- numeric(n)
+for (i in 1:n) {
+  result[i] <- i^2 + i
+}
+result
+```
+
+```{r}
+# Bad: growing a vector (slow for large n)
+result_bad <- c()
+for (i in 1:n) {
+  result_bad <- c(result_bad, i^2 + i)
+}
+result_bad
+```
+
+Both produce the same result, but the pre-allocated version is much faster for large n.
+
+### 2.5 while Loops
+
+```{r}
+# Find the smallest power of 2 greater than 1000
+x <- 1
+while (x <= 1000) {
+  x <- x * 2
+}
+x
+```
+
+### 2.6 break and next
+
+```{r}
+# Print odd numbers up to 15, stop at 11
+for (i in 1:15) {
+  if (i %% 2 == 0) next    # skip even numbers
+  if (i > 11) break        # stop after 11
+  cat(i, "")
+}
+```
+
+### Your Turn: Exercise 2.1
+
+Write a loop that iterates through numbers 1 to 20 and prints:
+
+- "fizz" for multiples of 3
+- "buzz" for multiples of 5
+- "fizzbuzz" for multiples of both
+- the number itself otherwise
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+#| eval: false
+for (i in 1:20) {
+  if (i %% 15 == 0) {
+    cat("fizzbuzz\n")
+  } else if (i %% 3 == 0) {
+    cat("fizz\n")
+  } else if (i %% 5 == 0) {
+    cat("buzz\n")
+  } else {
+    cat(i, "\n")
+  }
+}
+```
+
+### Your Turn: Exercise 2.2
+
+Write a `while` loop that simulates a random walk. Start at position 0. Each step, add a random value from `sample(c(-1, 1), 1)`. Stop when you reach +10 or -10. Print the final position and how many steps it took.
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+#| eval: false
+set.seed(42)
+position <- 0
+steps <- 0
+
+while (abs(position) < 10) {
+  position <- position + sample(c(-1, 1), 1)
+  steps <- steps + 1
+}
+
+cat("Final position:", position, "\n")
+cat("Steps taken:", steps, "\n")
+```
+
+### Your Turn: Exercise 2.3
+
+Use `ifelse()` to add a `gpa_category` column to the `students` data frame:
+
+- "high" if GPA >= 3.7
+- "medium" if GPA >= 3.3
+- "low" otherwise
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+#| eval: false
+students$gpa_category <- ifelse(students$gpa >= 3.7, "high",
+                         ifelse(students$gpa >= 3.3, "medium", "low"))
+students[, c("name", "gpa", "gpa_category")]
+```
+
+::: {.callout-warning title="Common Mistake"}
+**Using `if` instead of `ifelse()` on a vector.**
+
+```{r}
+scores <- c(85, 92, 67)
+if (scores > 80) "high" else "low"  # only checks first element!
+```
+
+`if` looks at only the first element. Use `ifelse()` for element-wise checks:
+
+```{r}
+ifelse(scores > 80, "high", "low")
+```
+:::
+
+::: {.callout-tip title="Challenge"}
+Write a for loop that computes the Fibonacci sequence up to the 20th term. Store results in a pre-allocated vector.
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+#| eval: false
+fib <- numeric(20)
+fib[1] <- 1
+fib[2] <- 1
+for (i in 3:20) {
+  fib[i] <- fib[i - 1] + fib[i - 2]
+}
+fib
+```
+:::
+
+---
+
+## Part 3: Writing Functions
+
+### 3.1 Basic Function Structure
+
+```{r}
+square <- function(x) {
+  x^2
+}
+square(4)
+square(1:5)  # works on vectors because ^2 is vectorized
+```
+
+The last expression is the return value. No explicit `return()` needed (but you can use it).
+
+### 3.2 Multiple Arguments and Defaults
+
+```{r}
+bmi <- function(weight_kg, height_m = 1.75) {
+  weight_kg / height_m^2
+}
+bmi(70)
+bmi(70, 1.80)
+```
+
+### 3.3 Input Validation with stop()
+
+```{r}
+safe_divide <- function(a, b) {
+  if (!is.numeric(a) || !is.numeric(b)) {
+    stop("Both arguments must be numeric")
+  }
+  if (any(b == 0)) {
+    stop("Cannot divide by zero")
+  }
+  a / b
+}
+safe_divide(10, 3)
+```
+
+```{r}
+#| error: true
+safe_divide(10, 0)
+```
+
+`stop()` throws an error with your message. Always validate inputs in functions you plan to reuse.
+
+### 3.4 Returning Multiple Values
+
+```{r}
+stats <- function(x) {
+  list(
+    mean = mean(x, na.rm = TRUE),
+    sd = sd(x, na.rm = TRUE),
+    min = min(x, na.rm = TRUE),
+    max = max(x, na.rm = TRUE),
+    n = sum(!is.na(x))
+  )
+}
+result <- stats(c(10, 20, NA, 40, 50))
+result$mean
+result$n
+```
+
+### 3.5 Lambda Syntax
+
+For short, one-off functions:
+
+```{r}
+sapply(1:5, \(x) x^2 + x)
+```
+
+`\(x) x^2 + x` is equivalent to `function(x) x^2 + x`.
+
+### 3.6 Scope and Closures
+
+```{r}
+make_counter <- function() {
+  count <- 0
+  list(
+    increment = function() {
+      count <<- count + 1  # <<- modifies parent scope
+      count
+    },
+    get = function() count
+  )
+}
+
+counter <- make_counter()
+counter$increment()
+counter$increment()
+counter$increment()
+counter$get()
+```
+
+The `<<-` operator assigns to the parent environment. Use it sparingly.
+
+### Your Turn: Exercise 3.1
+
+Write a function called `temp_convert` that converts between Fahrenheit and Celsius. It should:
+
+- Take a temperature value and a `to` argument ("C" or "F")
+- Default `to` to "C"
+- Return the converted value
+- Stop with an error if `to` is not "C" or "F"
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+#| eval: false
+temp_convert <- function(temp, to = "C") {
+  if (!to %in% c("C", "F")) {
+    stop("'to' must be 'C' or 'F'")
+  }
+  if (to == "C") {
+    (temp - 32) * 5/9
+  } else {
+    temp * 9/5 + 32
+  }
+}
+temp_convert(100)      # 100F to C
+temp_convert(37, "F")  # 37C to F
+```
+
+### Your Turn: Exercise 3.2
+
+Write a function `describe_column` that takes a data frame and a column name (as a string), and returns a named list with: count, mean, min, max, and number of NAs. Test it on the `students` data frame with the "gpa" column.
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+#| eval: false
+describe_column <- function(df, col_name) {
+  x <- df[[col_name]]
+  if (!is.numeric(x)) stop("Column must be numeric")
+  
+  list(
+    count = length(x),
+    mean = mean(x, na.rm = TRUE),
+    min = min(x, na.rm = TRUE),
+    max = max(x, na.rm = TRUE),
+    na_count = sum(is.na(x))
+  )
+}
+describe_column(students, "gpa")
+```
+
+### Your Turn: Exercise 3.3
+
+Write a function `create_multiplier` that takes a number `n` and returns a function that multiplies its input by `n`. This is a closure.
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+#| eval: false
+create_multiplier <- function(n) {
+  \(x) x * n
+}
+
+double <- create_multiplier(2)
+triple <- create_multiplier(3)
+
+double(5)   # 10
+triple(5)   # 15
+double(1:5) # 2 4 6 8 10
+```
+
+::: {.callout-warning title="Common Mistake"}
+**Forgetting that R copies on modify.**
+
+```{r}
+add_column <- function(df) {
+  df$new_col <- 1
+  df
+}
+
+result <- add_column(students)
+"new_col" %in% names(students)  # FALSE - original unchanged
+"new_col" %in% names(result)    # TRUE - modified copy returned
+```
+
+Passing a data frame to a function does not modify the original. The function works on a copy. You must assign the result back if you want the changes.
+:::
+
+::: {.callout-tip title="Challenge"}
+Write a function `apply_to_numeric` that takes a data frame and a function, and applies that function to every numeric column. Return a named list of results.
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+#| eval: false
+apply_to_numeric <- function(df, func) {
+  numeric_cols <- names(df)[sapply(df, is.numeric)]
+  result <- list()
+  for (col in numeric_cols) {
+    result[[col]] <- func(df[[col]])
+  }
+  result
+}
+
+apply_to_numeric(students, mean)
+apply_to_numeric(students, \(x) round(sd(x), 2))
+```
+:::
+
+---
+
+## Session Synthesis
+
+### Connect the Dots
+
+Build a complete grade analysis workflow:
+
+1. Create a data frame with 10 students: name, exam1 (0-100), exam2 (0-100), homework (0-100)
+2. Write a function `weighted_average` that computes: 40% exam1 + 40% exam2 + 20% homework
+3. Add a `final_score` column using your function
+4. Write a function `assign_letter` that converts a score to a letter grade (A/B/C/D/F)
+5. Add a `grade` column using `sapply()` and your letter grade function
+6. Find all students who passed (grade C or above)
+7. Calculate the class average final score
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+#| eval: false
+# 1
+set.seed(100)
+class_data <- data.frame(
+  name = paste0("Student_", 1:10),
+  exam1 = sample(50:100, 10, replace = TRUE),
+  exam2 = sample(50:100, 10, replace = TRUE),
+  homework = sample(60:100, 10, replace = TRUE)
+)
+
+# 2
+weighted_average <- function(e1, e2, hw) {
+  0.4 * e1 + 0.4 * e2 + 0.2 * hw
+}
+
+# 3
+class_data$final_score <- weighted_average(
+  class_data$exam1, class_data$exam2, class_data$homework
+)
+
+# 4
+assign_letter <- function(score) {
+  if (score >= 90) "A"
+  else if (score >= 80) "B"
+  else if (score >= 70) "C"
+  else if (score >= 60) "D"
+  else "F"
+}
+
+# 5
+class_data$grade <- sapply(class_data$final_score, assign_letter)
+
+# 6
+class_data[class_data$grade %in% c("A", "B", "C"), ]
+
+# 7
+mean(class_data$final_score)
+```
+
+### Key Takeaways
+
+1. Logical indexing is the most powerful way to filter data: `df[condition, ]`
+2. Use `ifelse()` for vectors, `if`/`else` for single values
+3. Pre-allocate output vectors before filling them in loops
+4. Functions return their last expression. Use named lists for multiple return values.
+5. `\(x)` is the modern lambda syntax for short anonymous functions.
+
+### Prepare for Next Session
+
+**Session 3: Patterns and Output**
+
+We will cover the apply family (replacing loops with cleaner code), string handling, and base R plotting. Make sure you are comfortable writing functions — the apply functions pass functions as arguments.
