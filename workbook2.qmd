@@ -116,12 +116,19 @@ x
 
 ```{r}
 temps <- c(72, 65, 80, 55, 90, 78, 62, 85, 70, 95)
+temps[3]
+temps[5]
+temps[8]
+temps[temps>75]
+temps[temps<65] <- 65
+temps[temps == 80]
 ```
 
 1. Extract the 3rd, 5th, and 8th temperatures
 2. Get all temperatures above 75
 3. Replace any temperature below 65 with 65 (a floor)
 4. Find the positions of temperatures above 80
+
 
 ```{r}
 #| code-fold: true

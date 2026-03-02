@@ -1,4 +1,4 @@
-#BASIC ARITHMETIC OPERATIONS
+#A BASIC ARITHMETIC OPERATIONS
 a <- 3 + 5 - 10
 a
 4^5
@@ -8,7 +8,7 @@ sin(pi) #this produces a rounding error becasue pi cannot be represented exactly
 sqrt(4)/log10(100)
 abs(-10)+floor(4.6)+ceiling(3.2)
 
-#VECTORS:
+#B-C VECTORS:
 v0 <- c("table","chair","closet","window")
 v0[4] <- "shelf"
 v1 <- c(1,4,3,15,75)
@@ -34,7 +34,7 @@ seq(-50,1000,by=10)
 seq(1,106,by=3)
 
 
-#LISTS
+#D LISTS
 l1 <- list(1,"a",TRUE)
 l2 <- list(2,3,2,"banana", 1:10)
 l1[[2]] <- "A"
@@ -45,7 +45,7 @@ l4[[3]][[3]] <- -2
 l5 <- list(4,5.3,1.4,0,-3,3,3)
 sum(unlist(l5))
 
-#MATRICES
+#E-F MATRICES
 m1 <- matrix(1:9, nrow = 3)
 m2 <- matrix(9:1, ncol = 3)
 m3 <- matrix(1:4, nrow = 2, ncol = 6)
@@ -55,8 +55,12 @@ m3 - 10
 m1 * 3
 rbind(cbind(m1,m2),m3)
 m1^2
+m1 %*% m1
 
 dim(m3)
+dim(m3)[2]
+nrow(m3)
+ncol(m3)
 m1[2,1] <- -1
 m2[,2]
 m2[1:2,1:2]<-0
@@ -64,3 +68,6 @@ m1[2:nrow(m1),] <- 5
 m1[-1,] <- 5
 m4 <- matrix(c("a", "b", "c", "d"), ncol=2, byrow = TRUE)
 cbind(m4,m3)
+cbind(m4,m3) |> typeof()
+typeof(cbind(m4,m3))
+
