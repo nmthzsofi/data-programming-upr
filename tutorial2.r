@@ -31,3 +31,11 @@ c(l1$vector[1:19], SH=19.5, l1$vector[-1:-19]) -> l1$vector
 l1
 l1$dataframe[1:2,]
 head(l1$dataframe,2)
+
+library("tidyverse")
+1:3 |> sum()
+1:3 %>% sum()
+1:4 %>% matrix(2,2,T)
+1:4 |> matrix(2)
+2 %>% matrix(1:4, .)
+
