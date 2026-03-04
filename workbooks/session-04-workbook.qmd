@@ -1,0 +1,774 @@
+---
+title: "Session 4: Files, Errors, and Review"
+subtitle: "R Programming Workbook"
+author: "R Programming Course"
+date: today
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    toc-location: left
+    code-fold: show
+    code-tools: true
+    code-overflow: wrap
+    theme: cosmo
+    self-contained: true
+execute:
+  echo: true
+  warning: false
+  message: false
+---
+
+::: {.callout-note title="Learning Objectives"}
+By the end of this session, you will be able to:
+
+1. Read CSV, TSV, and text files into R using `read.csv()` and `read.table()`
+2. Write data frames to files with `write.csv()` and `saveRDS()`
+3. Use `readLines()` and connections for non-tabular data
+4. Handle errors with `tryCatch()` and `try()`
+5. Write defensive functions using `stop()`, `warning()`, and `message()`
+6. Distinguish between errors, warnings, and messages
+7. Apply all Base R skills from Sessions 1-4 in integrated exercises
+8. Choose the right data structure and tool for a given problem
+:::
+
+## Part 1: Reading and Writing Data
+
+### Reading CSV Files
+
+The most common data format you will encounter is CSV. R reads these with `read.csv()`.
+
+```{r}
+# Create a temporary CSV to work with
+students <- data.frame(
+  name = c("Alice", "Bob", "Carlos", "Diana", "Elena", "Frank"),
+  age = c(21, 23, 22, 20, 24, 21),
+  major = c("CS", "Math", "CS", "Stats", "CS", "Math"),
+  gpa = c(3.8, 3.2, 3.5, 3.9, 3.1, 3.6),
+  year = c(3, 4, 3, 2, 4, 3)
+)
+
+# Write it out so we can practice reading it back
+write.csv(students, "students.csv", row.names = FALSE)
+
+# Read it back
+students_loaded <- read.csv("students.csv")
+str(students_loaded)
+```
+
+`read.csv()` returns a data frame. Strings become character vectors by default in modern R (R 4.0+). In older R, they became factors.
+
+### Key Arguments for read.csv()
+
+```{r}
+# stringsAsFactors: convert strings to factors?
+students_fac <- read.csv("students.csv", stringsAsFactors = TRUE)
+str(students_fac$major)  # Factor
+
+# nrows: read only first N rows (useful for previewing large files)
+preview <- read.csv("students.csv", nrows = 2)
+preview
+
+# skip: skip header rows
+skipped <- read.csv("students.csv", skip = 1, header = FALSE)
+head(skipped)
+```
+
+Notice what happened when we used `skip = 1` with `header = FALSE`. The column names became V1, V2, etc., and the first data row was kept.
+
+### read.table() for Other Delimiters
+
+```{r}
+# Create a tab-separated file
+write.table(students, "students.tsv", sep = "\t", row.names = FALSE)
+
+# Read tab-separated
+students_tab <- read.table("students.tsv", sep = "\t", header = TRUE)
+head(students_tab)
+
+# read.csv is just read.table with sep = "," and header = TRUE
+identical(
+  read.csv("students.csv"),
+  read.table("students.csv", sep = ",", header = TRUE)
+)
+```
+
+### Your Turn: Read Data with Options
+
+```{r}
+#| code-fold: true
+#| code-summary: "Exercise 1: Read the first 3 students, converting major to a factor"
+
+# Your code here:
+# Use read.csv() with nrows and stringsAsFactors arguments
+
+
+# Solution
+first_three <- read.csv("students.csv", nrows = 3, stringsAsFactors = TRUE)
+first_three
+class(first_three$major)
+```
+
+### Reading Non-Tabular Data
+
+Not all data comes in neat rows and columns. `readLines()` reads each line as a string.
+
+```{r}
+# Create a text file
+writeLines(c(
+  "# Student Report",
+  "Generated: 2024-03-15",
+  "",
+  "Total students: 6",
+  "Average GPA: 3.52",
+  "CS majors: 3"
+), "report.txt")
+
+# Read all lines
+lines <- readLines("report.txt")
+lines
+length(lines)
+
+# Extract just the data lines (skip comments and blanks)
+data_lines <- lines[!grepl("^#", lines) & nchar(lines) > 0]
+data_lines
+```
+
+### RDS Format: R's Native Binary
+
+CSV loses type information. RDS preserves everything.
+
+```{r}
+# Add a factor column
+students$major_fac <- factor(students$major)
+
+# Save as RDS
+saveRDS(students, "students.rds")
+
+# Load it back - types are preserved
+students_rds <- readRDS("students.rds")
+class(students_rds$major_fac)  # Still a factor
+levels(students_rds$major_fac)
+```
+
+Compare: CSV stores text. RDS stores R objects exactly as they are in memory. Use RDS for intermediate results, CSV for sharing with other tools.
+
+### Your Turn: Round-Trip Data
+
+```{r}
+#| code-fold: true
+#| code-summary: "Exercise 2: Create a matrix, save as RDS, load back, verify it is still a matrix"
+
+# 1. Create a 3x3 matrix with values 1-9
+# 2. Save it as "my_matrix.rds"
+# 3. Load it back into a new variable
+# 4. Check its class
+
+
+# Solution
+m <- matrix(1:9, nrow = 3)
+saveRDS(m, "my_matrix.rds")
+m_loaded <- readRDS("my_matrix.rds")
+class(m_loaded)
+identical(m, m_loaded)
+```
+
+### Your Turn: Parse a Report File
+
+```{r}
+#| code-fold: true
+#| code-summary: "Exercise 3: Extract numeric values from report.txt"
+
+# Read report.txt and extract all numbers from lines containing ':'
+# Hint: use readLines(), grep(), and gsub()
+
+
+# Solution
+lines <- readLines("report.txt")
+data_lines <- grep(":", lines, value = TRUE)
+# Remove everything except digits and dots
+numbers <- as.numeric(gsub("[^0-9.]", "", data_lines))
+numbers  # 6, 3.52, 3 (date numbers will appear too - that is OK)
+```
+
+::: {.callout-warning title="Common Mistake"}
+Forgetting `header = TRUE` in `read.table()`:
+
+```{r}
+#| error: true
+bad <- read.table("students.csv", sep = ",")
+head(bad, 2)  # First row becomes data, columns are V1, V2...
+```
+
+`read.csv()` sets `header = TRUE` by default. `read.table()` sets it to `FALSE`. Always check.
+:::
+
+### Cleanup
+
+```{r}
+# Clean up temporary files
+file.remove("students.csv", "students.tsv", "report.txt", 
+            "students.rds", "my_matrix.rds")
+```
+
+::: {.callout-tip title="Challenge"}
+Write a function `read_auto(filepath)` that detects the file extension and calls the right reader: `.csv` uses `read.csv()`, `.tsv` uses `read.table(..., sep="\t", header=TRUE)`, `.rds` uses `readRDS()`. For anything else, return `readLines()`.
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+
+read_auto <- function(filepath) {
+  ext <- tools::file_ext(filepath)
+  switch(ext,
+    csv = read.csv(filepath),
+    tsv = read.table(filepath, sep = "\t", header = TRUE),
+    rds = readRDS(filepath),
+    readLines(filepath)
+  )
+}
+```
+:::
+
+## Part 2: Error Handling
+
+### The Three Signals: Errors, Warnings, Messages
+
+R has three condition types. Each serves a different purpose.
+
+```{r}
+#| error: true
+
+# Error: execution stops
+log(-1)    # just a warning
+log("a")   # this is an error
+```
+
+```{r}
+# Warning: something is off, but R continued
+as.numeric(c("1", "2", "abc"))
+```
+
+```{r}
+# Message: informational, not a problem
+message("Processing 100 records...")
+```
+
+Think of it this way: errors mean "I cannot do this," warnings mean "I did it but something looks wrong," and messages mean "here is some information."
+
+### Producing Signals in Your Functions
+
+```{r}
+#| error: true
+
+divide <- function(x, y) {
+  if (!is.numeric(x) || !is.numeric(y)) {
+    stop("Both arguments must be numeric")
+  }
+  if (any(y == 0)) {
+    warning("Division by zero encountered; returning Inf")
+  }
+  message("Dividing ", length(x), " values")
+  x / y
+}
+
+divide(10, 2)
+divide(10, 0)
+divide("a", 2)
+```
+
+`stop()` raises an error and halts execution. `warning()` flags an issue but continues. `message()` prints info to the console.
+
+### Your Turn: Defensive Function
+
+```{r}
+#| code-fold: true
+#| code-summary: "Exercise 4: Write safe_sqrt() that handles bad input"
+
+# Write safe_sqrt(x) that:
+# - Stops with an error if x is not numeric
+# - Warns if any values are negative
+# - Returns sqrt(abs(x)) for negative values
+# - Sends a message with how many values it processed
+
+
+# Solution
+safe_sqrt <- function(x) {
+  if (!is.numeric(x)) stop("x must be numeric")
+  if (any(x < 0, na.rm = TRUE)) {
+    warning("Negative values detected; using absolute value")
+    x <- abs(x)
+  }
+  message("Processing ", length(x), " values")
+  sqrt(x)
+}
+
+safe_sqrt(c(4, 9, -16, 25))
+```
+
+### tryCatch: Handling Errors Gracefully
+
+`tryCatch()` lets you intercept conditions and decide what to do.
+
+```{r}
+# Without tryCatch: error kills execution
+# log("abc")  # would stop everything
+
+# With tryCatch: you control what happens
+result <- tryCatch(
+  log("abc"),
+  error = \(e) {
+    cat("Caught error:", conditionMessage(e), "\n")
+    NA
+  }
+)
+result
+```
+
+The structure is: `tryCatch(expr, error = handler, warning = handler, message = handler)`. Each handler receives the condition object `e`.
+
+```{r}
+# Handle warnings too
+result <- tryCatch(
+  as.numeric("abc"),
+  warning = \(w) {
+    cat("Warning caught:", conditionMessage(w), "\n")
+    NA
+  }
+)
+result
+```
+
+### try: The Simpler Alternative
+
+`try()` is less flexible but simpler. It wraps an expression and returns either the result or an object of class `"try-error"`.
+
+```{r}
+result <- try(log("abc"), silent = TRUE)
+class(result)
+
+if (inherits(result, "try-error")) {
+  cat("Something went wrong\n")
+} else {
+  cat("Result:", result, "\n")
+}
+```
+
+### Your Turn: Safe File Reader
+
+```{r}
+#| code-fold: true
+#| code-summary: "Exercise 5: Write a function that tries to read a CSV and returns NULL on failure"
+
+# Write safe_read(filepath) that:
+# - Tries to read the file with read.csv()
+# - Returns the data frame if it works
+# - Returns NULL and prints a message if the file does not exist
+
+
+# Solution
+safe_read <- function(filepath) {
+  tryCatch(
+    read.csv(filepath),
+    error = \(e) {
+      message("Could not read '", filepath, "': ", conditionMessage(e))
+      NULL
+    }
+  )
+}
+
+safe_read("nonexistent_file.csv")
+safe_read_result <- safe_read("nonexistent_file.csv")
+is.null(safe_read_result)
+```
+
+### Processing Multiple Items with Error Handling
+
+A common pattern: loop over items, catch errors per item, keep going.
+
+```{r}
+inputs <- list(4, "bad", 9, NULL, 16)
+
+results <- lapply(inputs, \(x) {
+  tryCatch(
+    sqrt(as.numeric(x)),
+    error = \(e) NA,
+    warning = \(w) NA
+  )
+})
+
+results
+```
+
+### Your Turn: Batch Processing
+
+```{r}
+#| code-fold: true
+#| code-summary: "Exercise 6: Process a list of mixed values, returning converted numbers or NA"
+
+# Given this list:
+values <- list("42", "3.14", "abc", "100", "", "7.5")
+
+# Convert each to numeric using tryCatch.
+# Return NA for any that fail.
+# Hint: as.numeric("abc") produces a warning, not an error
+
+
+# Solution
+converted <- sapply(values, \(v) {
+  tryCatch(
+    {
+      result <- suppressWarnings(as.numeric(v))
+      if (is.na(result) && nchar(v) > 0) {
+        warning("Not a number")
+      }
+      result
+    },
+    warning = \(w) NA
+  )
+})
+converted
+```
+
+::: {.callout-warning title="Common Mistake"}
+Catching warnings swallows the result:
+
+```{r}
+# tryCatch with warning handler does NOT return the expression result
+result <- tryCatch(
+  as.numeric(c("1", "abc", "3")),
+  warning = \(w) "caught a warning"
+)
+result  # "caught a warning", not the numeric vector
+
+# If you want the result AND to handle the warning, use withCallingHandlers
+result <- withCallingHandlers(
+  as.numeric(c("1", "abc", "3")),
+  warning = \(w) invokeRestart("muffleWarning")
+)
+result  # c(1, NA, 3) - the result is preserved
+```
+
+`tryCatch` exits on the first condition. `withCallingHandlers` handles the condition and continues.
+:::
+
+::: {.callout-tip title="Challenge"}
+Write a function `retry(expr, n = 3)` that attempts to evaluate an expression up to `n` times. If it fails all attempts, return the last error message. Test it with an expression that randomly fails.
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+
+retry <- function(f, n = 3) {
+  last_error <- NULL
+  for (i in seq_len(n)) {
+    result <- tryCatch(
+      { return(f()) },
+      error = \(e) {
+        message("Attempt ", i, " failed: ", conditionMessage(e))
+        e
+      }
+    )
+    last_error <- result
+  }
+  paste("All", n, "attempts failed. Last error:", conditionMessage(last_error))
+}
+
+# Test: function that fails ~50% of the time
+set.seed(1)
+retry(\() {
+  if (runif(1) < 0.5) stop("Random failure!")
+  "Success!"
+})
+```
+:::
+
+## Part 3: Base R Cumulative Review
+
+This part brings together everything from Sessions 1-4. No new material. All practice.
+
+### Review: Data Creation and Structure
+
+```{r}
+students <- data.frame(
+  name = c("Alice", "Bob", "Carlos", "Diana", "Elena", "Frank"),
+  age = c(21, 23, 22, 20, 24, 21),
+  major = c("CS", "Math", "CS", "Stats", "CS", "Math"),
+  gpa = c(3.8, 3.2, 3.5, 3.9, 3.1, 3.6),
+  year = c(3, 4, 3, 2, 4, 3)
+)
+```
+
+### Your Turn: Integrated Exercises
+
+```{r}
+#| code-fold: true
+#| code-summary: "Exercise 7: Subset and summarize"
+
+# 1. Get all CS majors with GPA above 3.4
+# 2. Calculate their mean age
+# 3. Return the result as a named list with elements: students (data frame), mean_age (number)
+
+
+# Solution
+cs_high <- students[students$major == "CS" & students$gpa > 3.4, ]
+result <- list(
+  students = cs_high,
+  mean_age = mean(cs_high$age)
+)
+result
+```
+
+```{r}
+#| code-fold: true
+#| code-summary: "Exercise 8: Apply + function writing"
+
+# Write a function gpa_category(gpa) that returns:
+# "High" for gpa >= 3.7, "Mid" for gpa >= 3.3, "Low" otherwise
+# Apply it to the students data frame to create a new column
+
+
+# Solution
+gpa_category <- function(gpa) {
+  ifelse(gpa >= 3.7, "High",
+    ifelse(gpa >= 3.3, "Mid", "Low"))
+}
+
+students$category <- gpa_category(students$gpa)
+students[, c("name", "gpa", "category")]
+```
+
+```{r}
+#| code-fold: true
+#| code-summary: "Exercise 9: tapply + string formatting"
+
+# Use tapply to find the mean GPA per major
+# Format each result as: "Major: X.XX" using sprintf
+# Return as a character vector
+
+
+# Solution
+means <- tapply(students$gpa, students$major, mean)
+sprintf("%s: %.2f", names(means), means)
+```
+
+```{r}
+#| code-fold: true
+#| code-summary: "Exercise 10: Loops + error handling"
+
+# Process this list of student updates:
+updates <- list(
+  list(name = "Alice", new_gpa = 3.9),
+  list(name = "George", new_gpa = 3.5),  # does not exist
+  list(name = "Bob", new_gpa = "high"),   # invalid GPA
+  list(name = "Carlos", new_gpa = 3.7)
+)
+
+# Loop through updates. For each:
+# - Check if student exists in students$name
+# - Check if new_gpa is numeric
+# - If valid, update the GPA
+# - If invalid, store an error message
+# Return a list of error messages (or empty if all succeeded)
+
+
+# Solution
+errors <- character(0)
+
+for (update in updates) {
+  tryCatch({
+    nm <- update$name
+    new_gpa <- update$new_gpa
+    
+    if (!nm %in% students$name) {
+      stop(paste("Student not found:", nm))
+    }
+    if (!is.numeric(new_gpa)) {
+      stop(paste("Invalid GPA for", nm, ":", new_gpa))
+    }
+    
+    students$gpa[students$name == nm] <- new_gpa
+    message("Updated ", nm, " to GPA ", new_gpa)
+  },
+  error = \(e) {
+    errors <<- c(errors, conditionMessage(e))
+  })
+}
+
+errors
+students[, c("name", "gpa")]
+```
+
+```{r}
+#| code-fold: true
+#| code-summary: "Exercise 11: Plotting from computed data"
+
+# 1. Compute mean GPA by major using tapply
+# 2. Create a barplot of the results
+# 3. Add a horizontal line at the overall mean GPA
+# 4. Title it "Mean GPA by Major"
+
+
+# Solution
+major_means <- tapply(students$gpa, students$major, mean)
+
+barplot(major_means,
+  main = "Mean GPA by Major",
+  ylab = "Mean GPA",
+  col = c("steelblue", "coral", "seagreen"),
+  ylim = c(0, 4)
+)
+abline(h = mean(students$gpa), lty = 2, col = "red")
+legend("topright", "Overall Mean", lty = 2, col = "red", bty = "n")
+```
+
+```{r}
+#| code-fold: true
+#| code-summary: "Exercise 12: Full pipeline"
+
+# Build a complete data processing pipeline:
+# 1. Create a numeric vector of 100 random exam scores (runif, 0 to 100)
+# 2. Write a function grade(score) that returns A/B/C/D/F
+# 3. Apply it to all scores
+# 4. Count how many of each grade
+# 5. Save the results as an RDS file
+# 6. Read it back and create a barplot
+
+# Do all of this inside tryCatch so the whole pipeline is safe
+
+
+# Solution
+set.seed(123)
+
+tryCatch({
+  # Step 1
+  scores <- round(runif(100, 0, 100), 1)
+  
+  # Step 2
+  grade <- function(score) {
+    if (!is.numeric(score)) stop("Score must be numeric")
+    if (score >= 90) "A"
+    else if (score >= 80) "B"
+    else if (score >= 70) "C"
+    else if (score >= 60) "D"
+    else "F"
+  }
+  
+  # Step 3
+  grades <- vapply(scores, grade, character(1))
+  
+  # Step 4
+  counts <- table(factor(grades, levels = c("A", "B", "C", "D", "F")))
+  
+  # Step 5
+  saveRDS(counts, "grade_counts.rds")
+  
+  # Step 6
+  loaded <- readRDS("grade_counts.rds")
+  barplot(loaded,
+    main = "Grade Distribution (n = 100)",
+    col = c("darkgreen", "steelblue", "goldenrod", "orange", "firebrick"),
+    ylab = "Count"
+  )
+  
+  message("Pipeline completed successfully")
+  
+  # Cleanup
+  file.remove("grade_counts.rds")
+},
+error = \(e) cat("Pipeline failed:", conditionMessage(e), "\n"))
+```
+
+### Think About It
+
+You have now worked through all of Base R fundamentals. Consider these questions:
+
+1. When would you choose a list over a data frame? When would a matrix be better than a data frame?
+2. You need to apply a function to each column of a data frame. Which approach do you use: a for loop, `lapply()`, or `vapply()`? What are the tradeoffs?
+3. Your script reads 50 CSV files. Some might be corrupted. How do you structure your code so one bad file does not crash the entire script?
+
+## Session Synthesis
+
+### Connect the Dots
+
+This exercise combines file I/O, error handling, functions, apply, and data manipulation.
+
+```{r}
+#| code-fold: true
+#| code-summary: "Synthesis Exercise: Student Records System"
+
+# Build a small student records system:
+
+# 1. Create 3 separate data frames representing 3 "class sections"
+section_a <- data.frame(
+  name = c("Alice", "Bob"), gpa = c(3.8, 3.2), section = "A"
+)
+section_b <- data.frame(
+  name = c("Carlos", "Diana"), gpa = c(3.5, 3.9), section = "B"
+)
+section_c <- data.frame(
+  name = c("Elena", "Frank"), gpa = c(3.1, 3.6), section = "C"
+)
+
+# 2. Save each as a CSV file
+sections <- list(A = section_a, B = section_b, C = section_c)
+lapply(names(sections), \(nm) {
+  write.csv(sections[[nm]], paste0("section_", nm, ".csv"), row.names = FALSE)
+})
+
+# 3. Write a function that reads all section files and combines them
+read_all_sections <- function(files) {
+  all_data <- lapply(files, \(f) {
+    tryCatch(
+      read.csv(f),
+      error = \(e) {
+        warning("Failed to read ", f, ": ", conditionMessage(e))
+        NULL
+      }
+    )
+  })
+  
+  # Remove NULL entries (failed reads)
+  all_data <- Filter(\(x) !is.null(x), all_data)
+  
+  if (length(all_data) == 0) stop("No files could be read")
+  
+  do.call(rbind, all_data)
+}
+
+# 4. Read all sections (include a fake file to test error handling)
+files <- c("section_A.csv", "section_B.csv", "section_FAKE.csv", "section_C.csv")
+combined <- read_all_sections(files)
+combined
+
+# 5. Add a grade category and summarize
+combined$honor <- ifelse(combined$gpa >= 3.5, "Yes", "No")
+summary_by_section <- tapply(combined$gpa, combined$section, \(x) {
+  sprintf("n=%d, mean=%.2f", length(x), mean(x))
+})
+summary_by_section
+
+# 6. Save final result
+saveRDS(combined, "all_students.rds")
+
+# 7. Cleanup
+file.remove("section_A.csv", "section_B.csv", "section_C.csv", "all_students.rds")
+```
+
+### Key Takeaways
+
+- `read.csv()` and `write.csv()` handle tabular data. `readRDS()` / `saveRDS()` preserve R objects exactly.
+- R has three signal types: `stop()` for errors, `warning()` for concerns, `message()` for info.
+- `tryCatch()` gives you full control over error handling. `try()` is simpler for quick checks.
+- Defensive programming means checking inputs, handling failures, and never assuming data is clean.
+- You now have all the Base R tools. Sessions 5+ build on this foundation with the Tidyverse.
+
+### Prepare for Next Session
+
+Session 5 introduces the Tidyverse. You will:
+
+- Meet tibbles (an improved data frame)
+- Learn the pipe operator `|>` for chaining operations
+- Use `dplyr` for data manipulation that replaces many Base R patterns you learned
+
+No preparation needed. Everything you learned in Sessions 1-4 carries forward.

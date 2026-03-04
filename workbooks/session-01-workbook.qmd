@@ -1,0 +1,728 @@
+---
+title: "Session 1: Welcome to R"
+subtitle: "R Programming Workbook"
+author: "R Programming Course"
+date: today
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    toc-location: left
+    code-fold: show
+    code-tools: true
+    code-overflow: wrap
+    theme: cosmo
+    self-contained: true
+execute:
+  echo: true
+  warning: false
+  message: false
+---
+
+::: {.callout-note title="Learning Objectives"}
+By the end of this session, you will be able to:
+
+**Part 1: R Environment**
+
+- Navigate Positron IDE and use the R console
+- Assign variables and check types
+- Access help documentation for any function
+
+**Part 2: Atomic Vectors**
+
+- Create vectors with `c()`, `seq()`, and `rep()`
+- Perform vectorized operations without loops
+- Handle type coercion and missing values (`NA`)
+
+**Part 3: Data Structures**
+
+- Build and index matrices
+- Create lists and extract elements with `$` and `[[`
+- Construct and manipulate data frames
+:::
+
+## Part 1: R Environment Setup
+
+### 1.1 The Console as Calculator
+
+R evaluates expressions and prints the result:
+
+```{r}
+2 + 3
+10 / 3
+2^8
+17 %% 5    # modulo (remainder)
+17 %/% 5   # integer division
+```
+
+`%%` gives the remainder. `%/%` gives the quotient without the remainder. Both differ from the `/` operator used in Python for integer division.
+
+### 1.2 Assignment
+
+Use `<-` to assign values to names:
+
+```{r}
+x <- 42
+greeting <- "Hello, R"
+x
+greeting
+```
+
+The shortcut for `<-` in Positron is Alt+- (Option+- on Mac).
+
+You can also use `=` for assignment, but `<-` is the R convention and what you will see in all R code.
+
+### 1.3 Checking Types
+
+```{r}
+typeof(42)
+typeof(42L)
+typeof("hello")
+typeof(TRUE)
+```
+
+Notice that `42` is a "double" (floating point), not an integer. To get an integer, append `L`: `42L`.
+
+```{r}
+class(42)
+class(42L)
+```
+
+`typeof()` tells you internal storage. `class()` tells you the object-oriented class. For basic types they align, but they diverge for more complex objects.
+
+### 1.4 Getting Help
+
+```{r}
+#| eval: false
+?mean            # open help for mean()
+help(mean)       # same thing
+??regression     # search all help pages
+example(mean)    # run the examples from help
+```
+
+Every function in R has a help page. The most useful section is **Examples** at the bottom.
+
+### Your Turn: Exercise 1.1
+
+Compute the following in R:
+
+1. 15 raised to the power of 3
+2. The remainder when 256 is divided by 7
+3. Assign your name to a variable called `my_name` and your age to `my_age`
+4. Use `typeof()` to check the type of each variable
+
+```{r}
+#| code-fold: true
+#| code-summary: "Hint"
+#| eval: false
+# 1
+15^3
+# 2
+256 %% 7
+# 3
+my_name <- "Your Name"
+my_age <- 22
+# 4
+typeof(my_name)
+typeof(my_age)
+```
+
+### Your Turn: Exercise 1.2
+
+Use `?sqrt` to open the help page for `sqrt()`. Then:
+
+1. Compute the square root of 144
+2. Compute the square root of -1. What happens?
+
+```{r}
+#| code-fold: true
+#| code-summary: "Hint"
+#| eval: false
+sqrt(144)
+sqrt(-1)  # Returns NaN with a warning
+```
+
+::: {.callout-warning title="Common Mistake"}
+**Forgetting that R is case-sensitive.**
+
+```{r}
+#| error: true
+X <- 10
+x  # This is a different variable
+```
+
+`X` and `x` are two different objects. R is case-sensitive for everything: variable names, function names, and arguments.
+:::
+
+---
+
+## Part 2: Atomic Vectors
+
+### 2.1 Creating Vectors
+
+The `c()` function combines values into a vector:
+
+```{r}
+nums <- c(10, 20, 30, 40, 50)
+nums
+
+words <- c("apple", "banana", "cherry")
+words
+
+flags <- c(TRUE, FALSE, TRUE, TRUE)
+flags
+```
+
+There are no scalars in R. Even a single number is a vector of length 1:
+
+```{r}
+x <- 5
+is.vector(x)
+length(x)
+```
+
+### 2.2 Sequences and Repetition
+
+```{r}
+# Colon operator for integer sequences
+1:10
+
+# seq() for more control
+seq(0, 1, by = 0.25)
+seq(1, 100, length.out = 5)
+
+# rep() for repetition
+rep(0, times = 5)
+rep(c(1, 2, 3), times = 3)
+rep(c(1, 2, 3), each = 3)
+```
+
+Notice the difference: `times` repeats the whole vector, `each` repeats each element before moving to the next.
+
+### 2.3 Vectorized Arithmetic
+
+Operations apply to every element at once:
+
+```{r}
+x <- c(2, 4, 6, 8, 10)
+x * 3
+x + 100
+x^2
+sqrt(x)
+```
+
+No loops needed. This is faster and more readable than looping.
+
+### 2.4 Element-wise Operations
+
+Two vectors of the same length get paired element by element:
+
+```{r}
+prices <- c(10, 20, 30)
+quantities <- c(5, 3, 8)
+prices * quantities
+```
+
+### 2.5 Recycling
+
+When vectors have different lengths, the shorter one repeats:
+
+```{r}
+x <- c(1, 2, 3, 4, 5, 6)
+y <- c(10, 20)
+x + y
+```
+
+`y` recycles: `10, 20, 10, 20, 10, 20`. This works silently when the lengths divide evenly.
+
+```{r}
+x <- c(1, 2, 3, 4, 5)
+y <- c(10, 20)
+x + y
+```
+
+When they do not divide evenly, R gives a warning.
+
+### 2.6 Type Coercion
+
+Vectors can only hold one type. When you mix types, R coerces to the most general type:
+
+```{r}
+c(1, 2, "three")      # all become character
+c(TRUE, FALSE, 1, 0)  # logicals become numeric
+c(1L, 2.5)            # integer becomes double
+```
+
+The coercion hierarchy: logical → integer → double → character.
+
+Explicit coercion with `as.*()`:
+
+```{r}
+as.numeric("42")
+as.character(100)
+as.logical(0)
+as.integer(3.9)  # truncates, does not round
+```
+
+### 2.7 Missing Values
+
+`NA` represents missing data:
+
+```{r}
+x <- c(10, 20, NA, 40, 50)
+mean(x)            # NA propagates
+mean(x, na.rm = TRUE)  # remove NAs first
+is.na(x)           # check which are NA
+sum(is.na(x))      # count NAs
+```
+
+NA propagation is a safety feature. It forces you to make a conscious choice about missing data.
+
+### Your Turn: Exercise 2.1
+
+Create a vector of the first 10 even numbers (2, 4, 6, ..., 20) using three different methods:
+
+1. Using `c()` with all values typed out
+2. Using the `seq()` function
+3. Using the `:` operator with multiplication
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+#| eval: false
+# Method 1
+c(2, 4, 6, 8, 10, 12, 14, 16, 18, 20)
+
+# Method 2
+seq(2, 20, by = 2)
+
+# Method 3
+(1:10) * 2
+```
+
+### Your Turn: Exercise 2.2
+
+Given this temperature data:
+
+```{r}
+temps_f <- c(72, 68, 75, 80, NA, 78, 82)
+```
+
+1. Convert all temperatures to Celsius: C = (F - 32) * 5/9
+2. Find the mean temperature in Celsius (handling the NA)
+3. Count how many days were above 25 degrees Celsius
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+#| eval: false
+temps_c <- (temps_f - 32) * 5/9
+temps_c
+
+mean(temps_c, na.rm = TRUE)
+
+sum(temps_c > 25, na.rm = TRUE)
+```
+
+### Your Turn: Exercise 2.3
+
+```{r}
+scores <- c(88, 92, 75, 95, 60, 84, 91, 77)
+```
+
+1. Find the highest and lowest scores
+2. How many scores are above 80?
+3. What proportion of scores are above 80?
+4. Sort the scores in descending order
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+#| eval: false
+max(scores)
+min(scores)
+
+sum(scores > 80)
+mean(scores > 80)
+
+sort(scores, decreasing = TRUE)
+```
+
+::: {.callout-warning title="Common Mistake"}
+**Using `==` to check for NA.**
+
+```{r}
+x <- c(1, NA, 3)
+x == NA   # Does NOT work
+is.na(x)  # Correct way
+```
+
+`NA == NA` returns `NA`, not `TRUE`. Always use `is.na()` to check for missing values.
+:::
+
+::: {.callout-tip title="Challenge"}
+Create a named vector of five countries and their populations (in millions). Then:
+
+1. Extract the population of the country with the highest population using logical indexing
+2. Find which countries have populations above the mean
+3. Calculate the total population
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+#| eval: false
+pops <- c(USA = 331, India = 1408, Brazil = 214, Japan = 125, Germany = 83)
+
+pops[pops == max(pops)]
+pops[pops > mean(pops)]
+sum(pops)
+```
+:::
+
+---
+
+## Part 3: Lists, Matrices, and Data Frames
+
+### 3.1 Matrices
+
+A matrix is a 2D structure with a single data type:
+
+```{r}
+m <- matrix(1:12, nrow = 3, ncol = 4)
+m
+```
+
+By default, `matrix()` fills by column. Use `byrow = TRUE` to fill by row:
+
+```{r}
+m2 <- matrix(1:12, nrow = 3, ncol = 4, byrow = TRUE)
+m2
+```
+
+### 3.2 Matrix Indexing
+
+```{r}
+m <- matrix(1:12, nrow = 3, ncol = 4)
+m[1, 2]      # row 1, column 2
+m[1, ]       # entire row 1
+m[, 3]       # entire column 3
+m[1:2, 3:4]  # submatrix
+```
+
+The syntax is `[row, col]`. Leave one blank to get the entire row or column.
+
+### 3.3 Matrix Operations
+
+```{r}
+m <- matrix(1:4, nrow = 2)
+m * 2         # element-wise multiplication
+m %*% m       # matrix multiplication
+t(m)          # transpose
+colSums(m)
+rowMeans(m)
+```
+
+`*` is element-wise. `%*%` is matrix multiplication. Do not confuse them.
+
+### 3.4 Lists
+
+Lists hold elements of any type and any length:
+
+```{r}
+student <- list(
+  name = "Alice",
+  age = 21,
+  scores = c(90, 85, 92, 88),
+  enrolled = TRUE
+)
+str(student)
+```
+
+### 3.5 Extracting from Lists
+
+This is critical. Pay attention to the difference:
+
+```{r}
+student$name           # returns the character string
+student[["age"]]       # returns the number
+student["scores"]      # returns a LIST containing scores
+student[[3]]           # returns the vector of scores
+```
+
+```{r}
+class(student["scores"])   # list
+class(student[["scores"]]) # numeric
+```
+
+`$` and `[[` extract the element itself. `[` returns a sub-list.
+
+### 3.6 Data Frames
+
+A data frame is a list of equal-length vectors. Each column can have a different type.
+
+```{r}
+students <- data.frame(
+  name = c("Alice", "Bob", "Carlos", "Diana", "Elena", "Frank"),
+  age = c(21, 23, 22, 20, 24, 21),
+  major = c("CS", "Math", "CS", "Stats", "CS", "Math"),
+  gpa = c(3.8, 3.2, 3.5, 3.9, 3.1, 3.6),
+  year = c(3, 4, 3, 2, 4, 3)
+)
+students
+```
+
+We will use this `students` data frame throughout Sessions 1-4.
+
+### 3.7 Exploring Data Frames
+
+```{r}
+str(students)
+summary(students)
+head(students, 3)
+nrow(students)
+ncol(students)
+names(students)
+```
+
+`str()` is the single most useful function for understanding any R object.
+
+### 3.8 Accessing Data Frame Elements
+
+Columns:
+
+```{r}
+students$name
+students[["gpa"]]
+```
+
+Rows:
+
+```{r}
+students[1, ]       # first row
+students[1:3, ]     # first three rows
+```
+
+Filtering:
+
+```{r}
+students[students$major == "CS", ]
+students[students$gpa > 3.5, ]
+```
+
+Selecting specific columns:
+
+```{r}
+students[students$gpa > 3.5, c("name", "gpa")]
+```
+
+### 3.9 Modifying Data Frames
+
+```{r}
+# Add a new column
+students$honors <- students$gpa >= 3.5
+students
+
+# Modify an existing column
+students$age <- students$age + 1
+head(students, 3)
+```
+
+### Your Turn: Exercise 3.1
+
+Create a 3x3 matrix containing the numbers 1 through 9. Then:
+
+1. Extract the element in row 2, column 3
+2. Extract the entire second row
+3. Calculate the column sums
+4. Multiply every element by 10
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+#| eval: false
+m <- matrix(1:9, nrow = 3)
+m[2, 3]
+m[2, ]
+colSums(m)
+m * 10
+```
+
+### Your Turn: Exercise 3.2
+
+Create a list called `course` with the following elements:
+
+- `title`: "R Programming"
+- `sessions`: 15
+- `topics`: a vector of "Base R", "Tidyverse", "Quarto"
+- `active`: TRUE
+
+Then:
+
+1. Extract the title using `$`
+2. Extract the number of sessions using `[[`
+3. Get the second topic from the topics vector
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+#| eval: false
+course <- list(
+  title = "R Programming",
+  sessions = 15,
+  topics = c("Base R", "Tidyverse", "Quarto"),
+  active = TRUE
+)
+
+course$title
+course[["sessions"]]
+course$topics[2]
+```
+
+### Your Turn: Exercise 3.3
+
+Using the `students` data frame:
+
+1. Find all students with GPA above 3.5
+2. Find all CS majors in year 3
+3. What is the average GPA of Math majors?
+4. Add a column called `status` that is "senior" if year is 4, otherwise "underclass"
+
+```{r}
+students <- data.frame(
+  name = c("Alice", "Bob", "Carlos", "Diana", "Elena", "Frank"),
+  age = c(21, 23, 22, 20, 24, 21),
+  major = c("CS", "Math", "CS", "Stats", "CS", "Math"),
+  gpa = c(3.8, 3.2, 3.5, 3.9, 3.1, 3.6),
+  year = c(3, 4, 3, 2, 4, 3)
+)
+```
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+#| eval: false
+# 1
+students[students$gpa > 3.5, ]
+
+# 2
+students[students$major == "CS" & students$year == 3, ]
+
+# 3
+mean(students[students$major == "Math", "gpa"])
+
+# 4
+students$status <- ifelse(students$year == 4, "senior", "underclass")
+students
+```
+
+::: {.callout-warning title="Common Mistake"}
+**Using `[` instead of `[[` to extract a list element, then trying to use it.**
+
+```{r}
+#| error: true
+student <- list(name = "Alice", gpa = 3.8)
+student["gpa"] + 0.1  # ERROR: + doesn't work on lists
+```
+
+Fix: Use `[[` or `$`:
+
+```{r}
+student[["gpa"]] + 0.1
+```
+:::
+
+::: {.callout-tip title="Challenge"}
+Create a data frame called `products` with 5 products, each having a name, price, and quantity. Then:
+
+1. Add a `total_value` column (price * quantity)
+2. Find the product with the highest total value
+3. Calculate the grand total of all inventory value
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+#| eval: false
+products <- data.frame(
+  name = c("Laptop", "Mouse", "Keyboard", "Monitor", "Headset"),
+  price = c(999, 25, 75, 400, 150),
+  quantity = c(10, 200, 80, 30, 60)
+)
+
+products$total_value <- products$price * products$quantity
+products[products$total_value == max(products$total_value), ]
+sum(products$total_value)
+```
+:::
+
+---
+
+## Session Synthesis
+
+### Connect the Dots
+
+This exercise combines vectors, lists, and data frames.
+
+You are tracking exam results for a class. Build the analysis step by step:
+
+1. Create a vector of 20 random exam scores between 50 and 100
+2. Calculate the mean, median, and standard deviation
+3. Create a named list containing: the scores vector, the mean, the number of passing scores (>= 60), and a logical value for whether the class average is above 70
+4. Create a data frame with columns: `student_id` (1:20), `score` (your scores), `passed` (TRUE/FALSE), and `grade` (A/B/C/F based on score ranges)
+5. Find the number of students in each grade category
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+#| eval: false
+# 1
+set.seed(123)
+scores <- sample(50:100, 20, replace = TRUE)
+
+# 2
+mean(scores)
+median(scores)
+sd(scores)
+
+# 3
+results <- list(
+  scores = scores,
+  average = mean(scores),
+  passing_count = sum(scores >= 60),
+  class_passed = mean(scores) > 70
+)
+str(results)
+
+# 4
+exam_df <- data.frame(
+  student_id = 1:20,
+  score = scores,
+  passed = scores >= 60,
+  grade = ifelse(scores >= 90, "A",
+          ifelse(scores >= 80, "B",
+          ifelse(scores >= 70, "C", "F")))
+)
+head(exam_df)
+
+# 5
+table(exam_df$grade)
+```
+
+### Key Takeaways
+
+1. Everything in R is a vector. A single number is a vector of length 1.
+2. Vectorized operations replace loops. `x * 2` multiplies every element — no loop needed.
+3. `[` keeps the container type. `[[` and `$` extract the contents. This matters most for lists.
+4. Data frames are lists of equal-length columns. They are the primary structure for data analysis in R.
+5. `str()` and `summary()` are your first tools for understanding any R object.
+
+### Prepare for Next Session
+
+**Session 2: Working with Data Structures**
+
+We will cover:
+
+- Advanced indexing and subsetting
+- Control flow: if/else, for, while
+- Writing your own functions
+
+To prepare: make sure you can create the `students` data frame from memory and filter it by column values. We will build on it heavily.

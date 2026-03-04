@@ -1,0 +1,560 @@
+---
+title: "Session 3: Patterns and Output"
+subtitle: "R Programming Workbook"
+author: "R Programming Course"
+date: today
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    toc-location: left
+    code-fold: show
+    code-tools: true
+    code-overflow: wrap
+    theme: cosmo
+    self-contained: true
+execute:
+  echo: true
+  warning: false
+  message: false
+---
+
+::: {.callout-note title="Learning Objectives"}
+By the end of this session, you will be able to:
+
+**Part 1: Apply Family**
+
+- Replace loops with `lapply`, `sapply`, `vapply`
+- Summarize data by groups with `tapply`
+- Iterate over multiple inputs with `mapply`
+
+**Part 2: String Handling**
+
+- Build strings with `paste()` and `sprintf()`
+- Find and replace patterns with `grep()`, `gsub()`
+- Split and clean strings
+
+**Part 3: Base R Plotting**
+
+- Create scatter plots, histograms, bar plots, and boxplots
+- Customize with colors, labels, legends, and multi-panel layouts
+- Save plots to files
+:::
+
+```{r}
+students <- data.frame(
+  name = c("Alice", "Bob", "Carlos", "Diana", "Elena", "Frank"),
+  age = c(21, 23, 22, 20, 24, 21),
+  major = c("CS", "Math", "CS", "Stats", "CS", "Math"),
+  gpa = c(3.8, 3.2, 3.5, 3.9, 3.1, 3.6),
+  year = c(3, 4, 3, 2, 4, 3)
+)
+```
+
+## Part 1: The Apply Family
+
+### 1.1 lapply: Returns a List
+
+`lapply` applies a function to each element and always returns a list:
+
+```{r}
+lapply(1:4, \(x) x^2)
+```
+
+On a data frame, it iterates over columns:
+
+```{r}
+lapply(students[, c("age", "gpa", "year")], mean)
+```
+
+### 1.2 sapply: Simplifies the Output
+
+```{r}
+sapply(students[, c("age", "gpa", "year")], mean)
+```
+
+`sapply` tries to return a vector or matrix. Convenient but unpredictable.
+
+### 1.3 vapply: Type-Safe
+
+```{r}
+vapply(students[, c("age", "gpa", "year")], mean, numeric(1))
+```
+
+You specify the expected output type. Use `vapply` in scripts and functions.
+
+### 1.4 tapply: Group Summaries
+
+```{r}
+tapply(students$gpa, students$major, mean)
+tapply(students$age, students$year, range)
+```
+
+### 1.5 mapply: Multiple Inputs
+
+```{r}
+mapply(\(name, gpa) paste(name, "has GPA", gpa),
+       students$name, students$gpa)
+```
+
+### Your Turn: Exercise 1.1
+
+Use `sapply` to compute the standard deviation of each numeric column in `students`.
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+#| eval: false
+sapply(students[, c("age", "gpa", "year")], sd)
+```
+
+### Your Turn: Exercise 1.2
+
+Use `tapply` to find:
+
+1. The maximum GPA in each major
+2. The number of students in each year
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+#| eval: false
+tapply(students$gpa, students$major, max)
+tapply(students$name, students$year, length)
+```
+
+### Your Turn: Exercise 1.3
+
+Use `lapply` to apply a custom function to each numeric column that returns a named vector with `mean`, `min`, and `max`. Then convert the result to a data frame using `do.call(rbind, ...)`.
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+#| eval: false
+result <- lapply(students[, c("age", "gpa", "year")], \(x) {
+  c(mean = mean(x), min = min(x), max = max(x))
+})
+do.call(rbind, result)
+```
+
+### Your Turn: Exercise 1.4
+
+Use `mapply` to create labels like "Alice (CS, Year 3)" for each student.
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+#| eval: false
+mapply(\(n, m, y) sprintf("%s (%s, Year %d)", n, m, y),
+       students$name, students$major, students$year)
+```
+
+::: {.callout-warning title="Common Mistake"}
+**Using `sapply` when output length varies.**
+
+```{r}
+sapply(list(a = 1:3, b = 1:5), range)  # matrix (OK)
+sapply(list(a = 1:3, b = 1:5), \(x) x[x > 2])  # list (surprise!)
+```
+
+When results have different lengths, `sapply` falls back to a list. Use `lapply` if you expect varied lengths.
+:::
+
+::: {.callout-tip title="Challenge"}
+Write a function `column_report` that takes a data frame and uses `vapply` to return a character vector describing each column: "colname: type (n unique values)".
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+#| eval: false
+column_report <- function(df) {
+  vapply(names(df), \(col) {
+    sprintf("%s: %s (%d unique)", col, class(df[[col]]), length(unique(df[[col]])))
+  }, character(1))
+}
+column_report(students)
+```
+:::
+
+---
+
+## Part 2: String Handling
+
+### 2.1 Building Strings
+
+```{r}
+paste("Hello", "World")
+paste("Hello", "World", sep = "-")
+paste0("item_", 1:5)
+
+fruits <- c("apple", "banana", "cherry")
+paste(fruits, collapse = ", ")
+```
+
+`sep` goes between arguments. `collapse` joins vector elements into one string.
+
+### 2.2 Formatted Strings with sprintf()
+
+```{r}
+sprintf("Name: %s, GPA: %.2f", "Alice", 3.812)
+sprintf("Student %d of %d", 1:3, 6)
+```
+
+Format codes: `%s` = string, `%d` = integer, `%f` = float, `%.2f` = 2 decimals.
+
+### 2.3 Pattern Matching
+
+```{r}
+emails <- c("alice@uni.edu", "bob@gmail.com", "carlos@uni.edu", "diana@yahoo.com")
+
+grep("uni", emails)               # positions
+grep("uni", emails, value = TRUE)  # values
+grepl("uni", emails)               # TRUE/FALSE
+```
+
+### 2.4 Substitution
+
+```{r}
+x <- "The quick brown fox"
+sub("quick", "slow", x)   # first match
+gsub("o", "0", x)          # all matches
+
+# Clean data
+prices <- c("$10.99", "$25.50", "$7.00")
+as.numeric(gsub("$", "", prices, fixed = TRUE))
+```
+
+### 2.5 Splitting Strings
+
+```{r}
+strsplit("2024-01-15", "-")[[1]]
+strsplit(c("a,b,c", "d,e"), ",")
+```
+
+`strsplit` returns a list. Use `[[1]]` for a single string input.
+
+### Your Turn: Exercise 2.1
+
+Given this vector of full names:
+
+```{r}
+full_names <- c("Alice Smith", "Bob Jones", "Carlos Garcia", "Diana Chen")
+```
+
+1. Extract just the first names (split on space, take first element)
+2. Create email addresses: firstname.lastname@university.edu (all lowercase)
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+#| eval: false
+# 1
+sapply(strsplit(full_names, " "), \(x) x[1])
+
+# 2
+parts <- strsplit(tolower(full_names), " ")
+sapply(parts, \(x) paste0(x[1], ".", x[2], "@university.edu"))
+```
+
+### Your Turn: Exercise 2.2
+
+Clean this messy data:
+
+```{r}
+messy <- c("  New York  ", "los angeles", "CHICAGO", "  san Francisco")
+```
+
+Produce: `"New York", "Los Angeles", "Chicago", "San Francisco"`
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+#| eval: false
+clean <- trimws(messy)
+clean <- tolower(clean)
+# Capitalize first letter of each word
+sapply(strsplit(clean, " "), \(words) {
+  paste(sapply(words, \(w) {
+    paste0(toupper(substring(w, 1, 1)), substring(w, 2))
+  }), collapse = " ")
+})
+```
+
+### Your Turn: Exercise 2.3
+
+Given this log data:
+
+```{r}
+logs <- c("2024-01-15 ERROR: file not found",
+          "2024-01-15 INFO: process started",
+          "2024-01-16 ERROR: connection timeout",
+          "2024-01-16 INFO: process complete",
+          "2024-01-17 WARNING: low memory")
+```
+
+1. Find all ERROR logs using `grepl`
+2. Extract just the dates from error logs
+3. Replace "ERROR" with "ERR" in all logs
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+#| eval: false
+# 1
+error_logs <- logs[grepl("ERROR", logs)]
+error_logs
+
+# 2
+substring(error_logs, 1, 10)
+
+# 3
+gsub("ERROR", "ERR", logs)
+```
+
+::: {.callout-warning title="Common Mistake"}
+**Forgetting that `gsub()` uses pattern matching by default.**
+
+```{r}
+gsub(".", "!", "Hello.")  # replaces everything (not just the dot)!
+gsub(".", "!", "Hello.", fixed = TRUE)  # correct: use fixed = TRUE for literal text
+```
+
+By default, `gsub()` treats the pattern as a regular expression (which we will cover in Session 14). For now, add `fixed = TRUE` when you want to match exact text like `"."`, `"$"`, or `"("`.
+:::
+
+---
+
+## Part 3: Base R Plotting
+
+### 3.1 Scatter Plot
+
+```{r}
+#| fig-width: 7
+#| fig-height: 5
+plot(students$age, students$gpa,
+     main = "Age vs GPA",
+     xlab = "Age", ylab = "GPA",
+     pch = 16, col = "steelblue", cex = 1.5)
+```
+
+Key arguments: `pch` = point shape, `col` = color, `cex` = size multiplier.
+
+### 3.2 Line Plot
+
+```{r}
+#| fig-width: 7
+#| fig-height: 5
+x <- 1:50
+y <- cumsum(rnorm(50))
+plot(x, y, type = "l", col = "darkred", lwd = 2,
+     main = "Random Walk", xlab = "Step", ylab = "Position")
+abline(h = 0, lty = 2, col = "gray50")
+```
+
+### 3.3 Histogram
+
+```{r}
+#| fig-width: 7
+#| fig-height: 5
+set.seed(42)
+data <- rnorm(500, mean = 100, sd = 15)
+hist(data, breaks = 25, col = "lightblue", border = "white",
+     main = "Test Scores", xlab = "Score")
+abline(v = mean(data), col = "red", lwd = 2)
+```
+
+### 3.4 Bar Plot
+
+```{r}
+#| fig-width: 7
+#| fig-height: 5
+counts <- table(students$major)
+barplot(counts, col = c("steelblue", "coral", "seagreen"),
+        main = "Students by Major", ylab = "Count")
+```
+
+### 3.5 Boxplot
+
+```{r}
+#| fig-width: 7
+#| fig-height: 5
+boxplot(gpa ~ major, data = students,
+        col = c("lightblue", "lightgreen", "lightyellow"),
+        main = "GPA by Major", ylab = "GPA")
+```
+
+### 3.6 Multi-Panel Layouts
+
+```{r}
+#| fig-width: 10
+#| fig-height: 5
+par(mfrow = c(1, 2))
+hist(students$gpa, col = "lightblue", main = "GPA Distribution")
+barplot(table(students$year), col = "coral", main = "Students by Year")
+par(mfrow = c(1, 1))
+```
+
+### 3.7 Adding Layers
+
+```{r}
+#| fig-width: 7
+#| fig-height: 5
+plot(students$age, students$gpa, type = "n",
+     main = "Students by Major", xlab = "Age", ylab = "GPA")
+
+colors <- c(CS = "red", Math = "blue", Stats = "green")
+for (m in unique(students$major)) {
+  sub <- students[students$major == m, ]
+  points(sub$age, sub$gpa, col = colors[m], pch = 16, cex = 1.5)
+}
+legend("bottomright", legend = names(colors), col = colors, pch = 16)
+```
+
+### Your Turn: Exercise 3.1
+
+Create a histogram of 1000 random values from a normal distribution with mean=0, sd=1. Add a vertical line at the mean. Use `breaks = 30` and a color of your choice.
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+#| eval: false
+set.seed(123)
+data <- rnorm(1000)
+hist(data, breaks = 30, col = "steelblue", border = "white",
+     main = "Standard Normal", xlab = "Value")
+abline(v = mean(data), col = "red", lwd = 2, lty = 2)
+```
+
+### Your Turn: Exercise 3.2
+
+Create a 2x2 panel of plots using the `students` data:
+
+1. Top left: scatter plot of age vs GPA
+2. Top right: bar plot of major counts
+3. Bottom left: boxplot of GPA by year
+4. Bottom right: barplot of year counts
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+#| eval: false
+par(mfrow = c(2, 2), mar = c(4, 4, 3, 1))
+plot(students$age, students$gpa, pch = 16, col = "steelblue",
+     main = "Age vs GPA", xlab = "Age", ylab = "GPA")
+barplot(table(students$major), col = "coral", main = "Majors")
+boxplot(gpa ~ year, data = students, col = "lightgreen", main = "GPA by Year")
+barplot(table(students$year), col = "lightyellow", main = "Years")
+par(mfrow = c(1, 1))
+```
+
+### Your Turn: Exercise 3.3
+
+Create a scatter plot of `mtcars$wt` (weight) vs `mtcars$mpg` (fuel efficiency). Color the points by the number of cylinders (`mtcars$cyl`). Add a legend.
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+#| eval: false
+colors <- c("4" = "blue", "6" = "green", "8" = "red")
+plot(mtcars$wt, mtcars$mpg, pch = 16,
+     col = colors[as.character(mtcars$cyl)],
+     main = "Weight vs MPG by Cylinders",
+     xlab = "Weight (1000 lbs)", ylab = "MPG")
+legend("topright", legend = paste(names(colors), "cyl"),
+       col = colors, pch = 16)
+```
+
+::: {.callout-tip title="Challenge"}
+Create a "dashboard" with 4 plots about the built-in `iris` dataset:
+
+1. Scatter: Sepal.Length vs Sepal.Width colored by Species
+2. Boxplot: Petal.Length by Species
+3. Histogram: Petal.Width
+4. Bar plot: count of each Species
+
+Include titles, colors, and legends where appropriate.
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+#| eval: false
+par(mfrow = c(2, 2), mar = c(4, 4, 3, 1))
+
+# 1
+cols <- c(setosa = "red", versicolor = "blue", virginica = "green")
+plot(iris$Sepal.Length, iris$Sepal.Width, pch = 16,
+     col = cols[iris$Species], main = "Sepal Dimensions",
+     xlab = "Length", ylab = "Width")
+legend("topright", legend = names(cols), col = cols, pch = 16, cex = 0.7)
+
+# 2
+boxplot(Petal.Length ~ Species, data = iris,
+        col = c("lightcoral", "lightblue", "lightgreen"),
+        main = "Petal Length by Species")
+
+# 3
+hist(iris$Petal.Width, breaks = 20, col = "steelblue",
+     main = "Petal Width Distribution", xlab = "Width")
+
+# 4
+barplot(table(iris$Species), col = c("lightcoral", "lightblue", "lightgreen"),
+        main = "Species Count")
+
+par(mfrow = c(1, 1))
+```
+:::
+
+---
+
+## Session Synthesis
+
+### Connect the Dots
+
+Build a text analysis of the `students` data using skills from all three parts:
+
+1. Use `tapply` to compute mean GPA by major
+2. Use `sprintf` to create a formatted report string for each major: "Major: X | Avg GPA: X.XX | Count: X"
+3. Create a two-panel plot: (a) bar plot of mean GPA by major, (b) scatter plot of age vs GPA colored by major with legend
+4. Use `mapply` to create student labels: "Name (Major, GPA: X.X)"
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+#| eval: false
+# 1
+avg_gpa <- tapply(students$gpa, students$major, mean)
+counts <- tapply(students$name, students$major, length)
+
+# 2
+mapply(\(major, avg, n) {
+  sprintf("Major: %s | Avg GPA: %.2f | Count: %d", major, avg, n)
+}, names(avg_gpa), avg_gpa, counts)
+
+# 3
+par(mfrow = c(1, 2), mar = c(4, 4, 3, 1))
+barplot(avg_gpa, col = "steelblue", main = "Mean GPA by Major",
+        ylab = "GPA", ylim = c(0, 4))
+colors <- c(CS = "red", Math = "blue", Stats = "green")
+plot(students$age, students$gpa, pch = 16,
+     col = colors[students$major],
+     main = "Age vs GPA", xlab = "Age", ylab = "GPA")
+legend("bottomright", legend = names(colors), col = colors, pch = 16)
+par(mfrow = c(1, 1))
+
+# 4
+mapply(\(n, m, g) sprintf("%s (%s, GPA: %.1f)", n, m, g),
+       students$name, students$major, students$gpa)
+```
+
+### Key Takeaways
+
+1. Use `vapply` in scripts (type-safe), `sapply` in console (convenient), `tapply` for groups.
+2. `paste()` concatenates, `sprintf()` formats, `grep()`/`gsub()` find and replace patterns.
+3. Base R plots build in layers: start with `plot()`, add with `points()`, `lines()`, `legend()`.
+4. `par(mfrow)` creates multi-panel layouts.
+
+### Prepare for Next Session
+
+**Session 4: Files, Errors, and Review**
+
+We will read and write data files, handle errors with `tryCatch`, and do a cumulative review of Sessions 1-3. Make sure all concepts from today are solid.
