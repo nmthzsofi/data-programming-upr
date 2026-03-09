@@ -486,6 +486,7 @@ This is critical. Pay attention to the difference:
 student$name           # returns the character string
 student[["age"]]       # returns the number
 student["scores"]      # returns a LIST containing scores
+student[["scores"]]      
 student[[3]]           # returns the vector of scores
 ```
 
@@ -577,6 +578,13 @@ Create a 3x3 matrix containing the numbers 1 through 9. Then:
 4. Multiply every element by 10
 
 ```{r}
+matrix <- matrix(1:9, nrow=3, ncol=3)
+matrix[2,3]
+colSums(matrix)
+matrix*10
+```
+
+```{r}
 #| code-fold: true
 #| code-summary: "Solution"
 #| eval: false
@@ -603,6 +611,19 @@ Then:
 3. Get the second topic from the topics vector
 
 ```{r}
+course <-  list(
+  title = "R Programming",
+  sessions = 15,
+  topics = c("Base R", "Tidyverse", "Quarto"),
+  active = TRUE
+  )
+
+  course$title
+  course[["sessions"]]
+  course$topics[2]
+```
+
+```{r}
 #| code-fold: true
 #| code-summary: "Solution"
 #| eval: false
@@ -626,6 +647,15 @@ Using the `students` data frame:
 2. Find all CS majors in year 3
 3. What is the average GPA of Math majors?
 4. Add a column called `status` that is "senior" if year is 4, otherwise "underclass"
+
+```{r}
+students[students$gpa>3.5,]
+students[students$major == "CS" & students$year == 3,]
+mean(students[students$major == "Math","gpa"])
+students$status <- ifelse( students$year == 4 , "senior", "underclass")
+students
+
+```
 
 ```{r}
 students <- data.frame(
@@ -679,6 +709,19 @@ Create a data frame called `products` with 5 products, each having a name, price
 3. Calculate the grand total of all inventory value
 
 ```{r}
+products <- data.frame(
+  name = c("toy", "jewellery", "water bottle", "glasses", "computer"),
+  price = c(200, 100, 10, 500, 1000),
+  quantity = c(2,4,6,1,9)
+)
+
+products$total_value <- products$price*products$quantity
+products
+products[products$total_value == max(products$total_value), ]
+sum(products$total_value)
+```
+
+```{r}
 #| code-fold: true
 #| code-summary: "Solution"
 #| eval: false
@@ -709,6 +752,29 @@ You are tracking exam results for a class. Build the analysis step by step:
 3. Create a named list containing: the scores vector, the mean, the number of passing scores (>= 60), and a logical value for whether the class average is above 70
 4. Create a data frame with columns: `student_id` (1:20), `score` (your scores), `passed` (TRUE/FALSE), and `grade` (A/B/C/F based on score ranges)
 5. Find the number of students in each grade category
+
+```{r}
+scores <- runif(20, min = 50, max = 100)
+mean(scores)
+median(scores)
+sd(scores)
+results <-  list(
+  scores = scores,
+  mean = mean(scores),
+  passes = sum(scores >= 60),
+  goodAverage = mean(scores) > 70
+)
+
+students <-  data.frame(
+  studnet_id = c(1:20),
+  score = scores,
+  passed = scores >= 60,
+  grade = ifelse(scores > 90, "A", ifelse(scores>75, "B", ifelse(scores>60,"C","F")))
+)
+
+table(students$grade)
+
+```
 
 ```{r}
 #| code-fold: true
