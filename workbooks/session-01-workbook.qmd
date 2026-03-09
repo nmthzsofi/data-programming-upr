@@ -68,7 +68,7 @@ x
 greeting
 ```
 
-The shortcut for `<-` in Positron is Alt+- (Option+- on Mac).
+The shortcut for `<-` in Positron is Alt+- (Option+- on Mac). 
 
 You can also use `=` for assignment, but `<-` is the R convention and what you will see in all R code.
 
@@ -112,6 +112,15 @@ Compute the following in R:
 4. Use `typeof()` to check the type of each variable
 
 ```{r}
+15^3
+256 %% 7
+my_name <- "Zsófi"
+my_age <- 21
+typeof(my_name)
+typeof(my_age)
+```
+
+```{r}
 #| code-fold: true
 #| code-summary: "Hint"
 #| eval: false
@@ -133,6 +142,11 @@ Use `?sqrt` to open the help page for `sqrt()`. Then:
 
 1. Compute the square root of 144
 2. Compute the square root of -1. What happens?
+
+```{r}
+sqrt(144)
+sqrt(-1) 
+```
 
 ```{r}
 #| code-fold: true
@@ -287,6 +301,12 @@ Create a vector of the first 10 even numbers (2, 4, 6, ..., 20) using three diff
 3. Using the `:` operator with multiplication
 
 ```{r}
+x <- c(2,4,6,8,10,12,14,16,18,20)
+y <-  seq(2,20, by= 2)
+z <- (1:10)*2
+
+```
+```{r}
 #| code-fold: true
 #| code-summary: "Solution"
 #| eval: false
@@ -313,6 +333,12 @@ temps_f <- c(72, 68, 75, 80, NA, 78, 82)
 3. Count how many days were above 25 degrees Celsius
 
 ```{r}
+(temps_f -32)*5/9
+mean(temps_f, na.rm = TRUE)
+sum(temps_f > 25, na.rm = TRUE)
+```
+
+```{r}
 #| code-fold: true
 #| code-summary: "Solution"
 #| eval: false
@@ -334,6 +360,13 @@ scores <- c(88, 92, 75, 95, 60, 84, 91, 77)
 2. How many scores are above 80?
 3. What proportion of scores are above 80?
 4. Sort the scores in descending order
+
+```{r}
+max(scores)
+min(scores)
+sum(scores>80)/length(scores)*100
+sort(scores, decreasing = TRUE)
+```
 
 ```{r}
 #| code-fold: true
@@ -366,6 +399,13 @@ Create a named vector of five countries and their populations (in millions). The
 1. Extract the population of the country with the highest population using logical indexing
 2. Find which countries have populations above the mean
 3. Calculate the total population
+
+```{r}
+countries <- c(London = 10, Paris = 20, Madrid = 5, Budapest = 2, NewYork = 25)
+countries[countries == max(countries)]
+countries[countries > mean(countries)]
+sum(countries)
+```
 
 ```{r}
 #| code-fold: true
