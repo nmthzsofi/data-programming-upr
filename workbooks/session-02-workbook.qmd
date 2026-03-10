@@ -124,6 +124,13 @@ temps <- c(72, 65, 80, 55, 90, 78, 62, 85, 70, 95)
 4. Find the positions of temperatures above 80
 
 ```{r}
+temps[c(3,5,8)]
+temps[temps>75]
+temps[temps < 65 ] <-  65
+which(temps > 80)
+```
+
+```{r}
 #| code-fold: true
 #| code-summary: "Solution"
 #| eval: false
@@ -141,6 +148,15 @@ Using the `students` data frame:
 2. Get just the names of all Math majors
 3. Find the student with the lowest GPA
 4. Create a subset of only CS majors, sorted by GPA descending
+
+```{r}
+students[students$year == 3 & students$gpa > 3.4, "name"]
+students[students$major == "Math", "name"]
+students[students$gpa == min(students$gpa),"name"]
+cs <-  students[students$major == "CS",]
+cs[order(cs$gpa, decreasing = TRUE)]
+cs
+```
 
 ```{r}
 #| code-fold: true
@@ -189,6 +205,13 @@ products <- data.frame(
 2. What is the average price of items in the "computer" category?
 3. Replace any price below $20 with $20 (minimum price policy)
 4. Find items that are NOT in the "accessory" category
+
+```{r}
+products[products$category == "accessory" & products$price > 50, ]
+mean(products[products$category == "computer", "price"])
+products[products$price<20,"price"]<- 20
+products[products$category != "accessory", ]
+```
 
 ```{r}
 #| code-fold: true
@@ -321,6 +344,18 @@ Write a loop that iterates through numbers 1 to 20 and prints:
 #| code-fold: true
 #| code-summary: "Solution"
 #| eval: false
+for (i in 1:20){
+  if(i %% 3 == 0 & i %% 5 == 0) {cat("fizzbuzz ")}
+  else if (i %% 3 == 0) {cat("fizz ")}
+  else if(i %% 5 == 0){ cat("buzz ")}
+  else {cat(i, " ")}  
+}
+```
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+#| eval: false
 for (i in 1:20) {
   if (i %% 15 == 0) {
     cat("fizzbuzz\n")
@@ -338,6 +373,18 @@ for (i in 1:20) {
 
 Write a `while` loop that simulates a random walk. Start at position 0. Each step, add a random value from `sample(c(-1, 1), 1)`. Stop when you reach +10 or -10. Print the final position and how many steps it took.
 
+```{r}
+n <- 0
+steps <- 0
+while (abs(n) < 10){
+  n <- n + sample(c(-1, 1), 1)
+  steps <- steps + 1
+}
+n
+steps
+
+
+```
 ```{r}
 #| code-fold: true
 #| code-summary: "Solution"
@@ -362,6 +409,11 @@ Use `ifelse()` to add a `gpa_category` column to the `students` data frame:
 - "high" if GPA >= 3.7
 - "medium" if GPA >= 3.3
 - "low" otherwise
+
+```{r}
+students$gpa_category <- ifelse(students$gpa >= 3.7, "high", ifelse(students$gpa >= 3.3, "medium", "low"))
+students
+```
 
 ```{r}
 #| code-fold: true
@@ -389,6 +441,7 @@ ifelse(scores > 80, "high", "low")
 
 ::: {.callout-tip title="Challenge"}
 Write a for loop that computes the Fibonacci sequence up to the 20th term. Store results in a pre-allocated vector.
+
 
 ```{r}
 #| code-fold: true
@@ -512,6 +565,25 @@ Write a function called `temp_convert` that converts between Fahrenheit and Cels
 - Stop with an error if `to` is not "C" or "F"
 
 ```{r}
+temp_convert <- function(temp, to = "C"){
+  if(to != "C" & to != "F"){
+    stop("Invalid conversion type")
+  }
+  if(to == "F"){
+    converted <- (temp * 9/5) + 32
+  }
+
+  if(to == "C"){
+    converted <- (temp - 32) * 5/9
+  }
+  converted
+}
+
+temp_convert(100, "C")
+temp_convert(30,"F")
+temp_convert(25,"G")
+```
+```{r}
 #| code-fold: true
 #| code-summary: "Solution"
 #| eval: false
@@ -532,6 +604,20 @@ temp_convert(37, "F")  # 37C to F
 ### Your Turn: Exercise 3.2
 
 Write a function `describe_column` that takes a data frame and a column name (as a string), and returns a named list with: count, mean, min, max, and number of NAs. Test it on the `students` data frame with the "gpa" column.
+
+```{r}
+describe_column <- function(df,name){
+  list(
+    mean = mean(df[[name]], na.rm = TRUE),
+    count = length(df[[name]]),
+    min = min(df[[name]], na.rm = TRUE),
+    max = max(df[[name]], na.rm = TRUE),
+    nas = sum(is.na(students[[name]])  )
+  )
+}
+
+describe_column(students, "gpa")
+```
 
 ```{r}
 #| code-fold: true
@@ -555,6 +641,20 @@ describe_column(students, "gpa")
 ### Your Turn: Exercise 3.3
 
 Write a function `create_multiplier` that takes a number `n` and returns a function that multiplies its input by `n`. This is a closure.
+
+```{r}
+create_multiplier <- function(n){
+  list(
+    multiplier = function (x){
+      x*n
+    },
+    get = function() n
+  )
+}
+
+multiply_by_3 <- create_multiplier(3)
+multiply_by_3$multiplier(5)
+```
 
 ```{r}
 #| code-fold: true
@@ -592,6 +692,22 @@ Passing a data frame to a function does not modify the original. The function wo
 ::: {.callout-tip title="Challenge"}
 Write a function `apply_to_numeric` that takes a data frame and a function, and applies that function to every numeric column. Return a named list of results.
 
+```{r}
+apply_to_numeric <- function(df, func){
+  cols <- names(students)
+  results <- list()
+  for(col in cols){
+      if( is.numeric(students[[col]])){
+        results[[col]] <- func(df[[col]])
+      }
+  }
+  results
+}
+
+apply_to_numeric(students, max)
+
+
+```
 ```{r}
 #| code-fold: true
 #| code-summary: "Solution"
