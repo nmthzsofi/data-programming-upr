@@ -422,7 +422,7 @@ abline(h = 0, lty = 2, col = "gray50")
 #| fig-height: 5
 set.seed(42)
 data <- rnorm(500, mean = 100, sd = 15)
-hist(data, breaks = 25, col = "lightblue", border = "white",
+hist(data, breaks = 25, col = "lightblue", border = "black",
      main = "Test Scores", xlab = "Score")
 abline(v = mean(data), col = "red", lwd = 2)
 ```
@@ -479,6 +479,12 @@ legend("bottomright", legend = names(colors), col = colors, pch = 16)
 Create a histogram of 1000 random values from a normal distribution with mean=0, sd=1. Add a vertical line at the mean. Use `breaks = 30` and a color of your choice.
 
 ```{r}
+data <- rnorm(1000, mean= 0, sd= 1)
+hist(data,col="red", breaks=30, main="Normal distribution", xlab="Generatedd numbers", border="black")
+abline(v=mean(data), col="gray", lwd=2, lty = 2)
+```
+
+```{r}
 #| code-fold: true
 #| code-summary: "Solution"
 #| eval: false
@@ -499,6 +505,16 @@ Create a 2x2 panel of plots using the `students` data:
 4. Bottom right: barplot of year counts
 
 ```{r}
+par(mfrow = c(2,2), mar = c(4,4,3,2))
+plot(students$age, students$gpa, col = "red", main="Age vs GPA", xlab="age", ylab="gpa", pch=16)
+barplot(table(students$major), col="blue", main="Major distribution", xlab="Major", ylab="Count")
+boxplot(gpa ~year, data = students, col="coral", xlab="Year", main="gpa by year")
+barplot(table(students$year), main="Distribution of years", col="pink", xlab="years", ylab="count", 
+border="purple")
+par(mfrow=c(1,1))
+```
+
+```{r}
 #| code-fold: true
 #| code-summary: "Solution"
 #| eval: false
@@ -514,6 +530,12 @@ par(mfrow = c(1, 1))
 ### Your Turn: Exercise 3.3
 
 Create a scatter plot of `mtcars$wt` (weight) vs `mtcars$mpg` (fuel efficiency). Color the points by the number of cylinders (`mtcars$cyl`). Add a legend.
+
+```{r}
+colors <- c("4" = "blue", "6" = "green", "8" = "red")
+plot(mtcars$wt, mtcars$mpg, pch = 16, col = colors[as.character(mtcars$cyl)])
+legend("topright",legend = paste(names(colors), "cyl"), col = colors, pch = 16)
+```
 
 ```{r}
 #| code-fold: true
@@ -537,6 +559,19 @@ Create a "dashboard" with 4 plots about the built-in `iris` dataset:
 4. Bar plot: count of each Species
 
 Include titles, colors, and legends where appropriate.
+
+```{r}
+iris
+colors <- c("virginica" = "red", "versicolor" = "pink", "setosa" = "purple")
+par(mfrow = c(2,2))
+plot(iris$Sepal.Length, iris$Sepal.Width, col= colors[iris$Species], cex=1, pch= 16, main="length vs width", xlab = "length", ylab = "width")
+boxplot(iris$Petal.Length ~ iris$Species, data = iris, col = "red")
+hist(iris$Petal.Width, col= "red")
+barplot(table(iris$Species), col="blue")
+par(mfrow = c(1,1))
+
+
+```
 
 ```{r}
 #| code-fold: true
@@ -580,6 +615,22 @@ Build a text analysis of the `students` data using skills from all three parts:
 2. Use `sprintf` to create a formatted report string for each major: "Major: X | Avg GPA: X.XX | Count: X"
 3. Create a two-panel plot: (a) bar plot of mean GPA by major, (b) scatter plot of age vs GPA colored by major with legend
 4. Use `mapply` to create student labels: "Name (Major, GPA: X.X)"
+
+```{r}
+avg_gpa <- tapply(students$gpa, students$major, mean)
+count <- tapply(students$gpa, students$major, length)
+
+mapply(\(major, avg, n) {sprintf("Major: %s | Avg GPA: %.2f | Count: %d", major, avg, n)}, names(avg_gpa), avg_gpa, count)
+
+color <- c(CS = "red", Math = "blue", Stats = "orange")
+
+par(mfrow= c(1,2))
+barplot(avg_gpa, major = "Average gpa", col = "blue")
+plot(students$age, students$gpa, pch = 16, col = color[students$major], cex = 1)
+par(mfrow=c(1,1))
+mapply(\(name, major, gpa) {sprintf("%s: (%s, GPA: %2.f)", name, major,gpa)}, students$name, students$major, students$gpa)
+
+```
 
 ```{r}
 #| code-fold: true
