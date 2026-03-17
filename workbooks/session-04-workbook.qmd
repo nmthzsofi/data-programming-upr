@@ -102,6 +102,9 @@ identical(
 # Your code here:
 # Use read.csv() with nrows and stringsAsFactors arguments
 
+top3_studenst <- read.csv("students.csv", nrows = 3, stringsAsFactors = TRUE)
+top3_studenst
+
 
 # Solution
 first_three <- read.csv("students.csv", nrows = 3, stringsAsFactors = TRUE)
@@ -164,6 +167,12 @@ Compare: CSV stores text. RDS stores R objects exactly as they are in memory. Us
 # 3. Load it back into a new variable
 # 4. Check its class
 
+matrix <- matrix(1:9, nrow = 3, ncol = 3)
+saveRDS(matrix, "matrix.rds")
+matrix_loaded <- readRDS("matrix.rds")
+class(matrix_loaded)
+matrix_loaded
+
 
 # Solution
 m <- matrix(1:9, nrow = 3)
@@ -182,10 +191,17 @@ identical(m, m_loaded)
 # Read report.txt and extract all numbers from lines containing ':'
 # Hint: use readLines(), grep(), and gsub()
 
+lines <- readLines("report.txt")
+extracted <- lines [grep(":", lines)]
+extracted
+numbers <- gsub("[^0-9.]","",extracted)
+numbers
+
 
 # Solution
 lines <- readLines("report.txt")
 data_lines <- grep(":", lines, value = TRUE)
+data_lines
 # Remove everything except digits and dots
 numbers <- as.numeric(gsub("[^0-9.]", "", data_lines))
 numbers  # 6, 3.52, 3 (date numbers will appear too - that is OK)
@@ -208,7 +224,7 @@ head(bad, 2)  # First row becomes data, columns are V1, V2...
 ```{r}
 # Clean up temporary files
 file.remove("students.csv", "students.tsv", "report.txt", 
-            "students.rds", "my_matrix.rds")
+            "students.rds", "matrix.rds")
 ```
 
 ::: {.callout-tip title="Challenge"}
@@ -217,6 +233,19 @@ Write a function `read_auto(filepath)` that detects the file extension and calls
 ```{r}
 #| code-fold: true
 #| code-summary: "Solution"
+
+fname <- "matrix.csv"
+
+file_reader <- function(fname){
+  extension <- tools::file_ext(fname)
+  switch(extension){
+    csv = read.csv(fname),
+    tsv = read.table(fname, sep="\t", header = TRUE),
+    rds = readRDS(fname),
+    readLines(fname)
+  }
+
+}
 
 read_auto <- function(filepath) {
   ext <- tools::file_ext(filepath)
@@ -290,6 +319,23 @@ divide("a", 2)
 # - Warns if any values are negative
 # - Returns sqrt(abs(x)) for negative values
 # - Sends a message with how many values it processed
+
+safe_sqrt <-  function(n){
+  if(n<0){
+    warning("You cannot take the root of a negative number. I will take the abs")
+    sqrt(abs(n))
+  }
+  if(!is.numeric(n)){
+    stop("Not a numeric value")
+  }
+  message("processing ",length(n)," values")
+
+  sqrt(n)
+}
+
+safe_sqrt(4)
+safe_sqrt(1)
+safe_sqrt(-1)
 
 
 # Solution
@@ -365,6 +411,17 @@ if (inherits(result, "try-error")) {
 # - Returns the data frame if it works
 # - Returns NULL and prints a message if the file does not exist
 
+safe_read <- function(filepath){
+  tryCatch(read.csv(filepath), 
+  error = \(e) {
+    
+    message("Error when reading file")
+    NULL
+  }  
+    )
+}
+safe_read("students.csv")
+
 
 # Solution
 safe_read <- function(filepath) {
@@ -412,6 +469,20 @@ values <- list("42", "3.14", "abc", "100", "", "7.5")
 # Convert each to numeric using tryCatch.
 # Return NA for any that fail.
 # Hint: as.numeric("abc") produces a warning, not an error
+
+converted <- sapply(values, \(x) {
+  tryCatch(
+    {
+      result <- suppressWarnings(as.numeric(x))
+      if(is.na(result) && nchar(x)){
+        warning("NA")
+      }
+      result
+    },
+    warning = \(w) NA 
+  )
+})
+converted
 
 
 # Solution
@@ -509,8 +580,17 @@ students <- data.frame(
 # 2. Calculate their mean age
 # 3. Return the result as a named list with elements: students (data frame), mean_age (number)
 
+cs <- students[students$major == "CS" & students$gpa > 3.4,]
+mean(students$age)
+students_results <- list(
+  students = cs,
+  mean_age = mean(students$age)
+)
+students_results
+
 
 # Solution
+
 cs_high <- students[students$major == "CS" & students$gpa > 3.4, ]
 result <- list(
   students = cs_high,
@@ -526,6 +606,14 @@ result
 # Write a function gpa_category(gpa) that returns:
 # "High" for gpa >= 3.7, "Mid" for gpa >= 3.3, "Low" otherwise
 # Apply it to the students data frame to create a new column
+
+gpa_category <- function(gpa) {
+  ifelse(gpa >= 3.7, "High",
+    ifelse(gpa >= 3.3, "Mid", "Low"))
+}
+
+students$grade <- gpa_category(students$gpa)
+students
 
 
 # Solution
@@ -545,6 +633,9 @@ students[, c("name", "gpa", "category")]
 # Use tapply to find the mean GPA per major
 # Format each result as: "Major: X.XX" using sprintf
 # Return as a character vector
+
+means <- tapply(students$gpa, students$major, mean)
+sprintf("%s: %2f",names(means), means)
 
 
 # Solution
@@ -571,6 +662,27 @@ updates <- list(
 # - If invalid, store an error message
 # Return a list of error messages (or empty if all succeeded)
 
+errors <- character(0)
+
+for (update in updates){
+  tryCatch({
+  name <-  update$name
+  gpa <- update$new_gpa
+
+  if(! name %in% students$name){
+    stop(paste(name," not found in the databse"))
+  }
+  if(! is.numeric(gpa)){
+    stop(paste("Not a number"))
+  }
+  students$gpa[students$name == name] <- gpa
+  paste("%s updated", name)
+
+  }, 
+  error = \(e){ errors <<- c(errors, conditionMessage(e)) })
+}
+
+errors
 
 # Solution
 errors <- character(0)
@@ -608,6 +720,9 @@ students[, c("name", "gpa")]
 # 3. Add a horizontal line at the overall mean GPA
 # 4. Title it "Mean GPA by Major"
 
+means <-  tapply(students$gpa, students$major, mean)
+barplot(means, main="Mean GPA by Majo", xlab="Major", ylab="Average gpa", col="yellow")
+abline(h=mean(students$gpa), lty=2, bty="n")
 
 # Solution
 major_means <- tapply(students$gpa, students$major, mean)
@@ -635,6 +750,30 @@ legend("topright", "Overall Mean", lty = 2, col = "red", bty = "n")
 # 6. Read it back and create a barplot
 
 # Do all of this inside tryCatch so the whole pipeline is safe
+
+tryCatch({
+scores <- runif(100,0,100)
+scores[6] <- "a"
+grade <- function(score){
+    
+    if(!is.numeric(score)){
+      stop("Not a number")
+    }
+  
+  ifelse(score>80,"A",
+  ifelse(score>70,"B",
+  ifelse(score>60,"C",
+  ifelse(score>50,"D", "F"))))
+}
+
+final_grades <- vapply(scores,grade,character(1))
+statistics <- table(final_grades)
+saveRDS(statistics, "statistics.rds")
+loaded <- readRDS("statistics.rds")
+barplot(loaded)
+},
+error = \(e) message("Error", conditionMessage(e)))
+
 
 
 # Solution
@@ -684,8 +823,13 @@ error = \(e) cat("Pipeline failed:", conditionMessage(e), "\n"))
 You have now worked through all of Base R fundamentals. Consider these questions:
 
 1. When would you choose a list over a data frame? When would a matrix be better than a data frame?
+- when my rows are of different length
+- matrix is better when we only have one types of data 
 2. You need to apply a function to each column of a data frame. Which approach do you use: a for loop, `lapply()`, or `vapply()`? What are the tradeoffs?
+- Most of the times I would use lapply. Loops are slower and to use vapply I need to have to define the return type
+- Lapply is not type safe though
 3. Your script reads 50 CSV files. Some might be corrupted. How do you structure your code so one bad file does not crash the entire script?
+- I put it in a tryCatch and only throw an error when the script couldn't read the file but continue the loop after
 
 ## Session Synthesis
 
