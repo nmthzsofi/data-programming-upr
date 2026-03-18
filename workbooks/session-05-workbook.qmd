@@ -1,0 +1,787 @@
+---
+title: "Session 5: Enter the Tidyverse"
+subtitle: "R Programming Workbook"
+author: "R Programming Course"
+date: today
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    toc-location: left
+    code-fold: show
+    code-tools: true
+    code-overflow: wrap
+    theme: cosmo
+    self-contained: true
+execute:
+  echo: true
+  warning: false
+  message: false
+---
+
+::: {.callout-note title="Learning Objectives"}
+After completing this session, you will be able to:
+
+1. Explain the design principles behind the tidyverse
+2. Write pipe chains using the native |> operator
+3. Create and work with tibbles, understanding how they differ from data frames
+4. Use filter(), select(), mutate(), summarize(), and arrange() to manipulate data
+5. Apply grouped operations using the .by argument
+6. Use across() to apply functions to multiple columns
+7. Combine datasets using different join types
+8. Build multi-step data pipelines that chain verbs together
+:::
+
+```{r}
+#| label: setup
+library(tidyverse)
+
+# Recurring datasets
+students_tbl <- tibble(
+  name = c("Alice", "Bob", "Carlos", "Diana", "Elena", "Frank"),
+  age = c(21, 23, 22, 20, 24, 21),
+  major = c("CS", "Math", "CS", "Stats", "CS", "Math"),
+  gpa = c(3.8, 3.2, 3.5, 3.9, 3.1, 3.6),
+  year = c(3, 4, 3, 2, 4, 3)
+)
+
+set.seed(42)
+sales <- tibble(
+  date = rep(seq(as.Date("2024-01-01"), as.Date("2024-12-31"), by = "day"), 3),
+  region = rep(c("North", "South", "West"), each = 366),
+  product = sample(c("Widget", "Gadget", "Doohickey"), 366 * 3, replace = TRUE),
+  units = rpois(366 * 3, lambda = 50),
+  revenue = round(runif(366 * 3, 10, 500), 2),
+  returned = rbinom(366 * 3, 1, 0.05)
+)
+```
+
+## Part 1: Pipes and Tibbles
+
+### The Native Pipe |>
+
+The pipe passes the left side as the first argument to the right side:
+
+```{r}
+# Without pipe
+round(mean(c(10, 20, NA, 40), na.rm = TRUE), 1)
+
+# With pipe — read left to right
+c(10, 20, NA, 40) |> mean(na.rm = TRUE) |> round(1)
+```
+
+Both produce the same result. The pipe version reads as a sequence of steps.
+
+When the input needs to go somewhere other than the first argument, use `_` as a placeholder:
+
+```{r}
+mtcars |> lm(mpg ~ wt, data = _) |> coef()
+```
+
+For more complex cases, use a lambda:
+
+```{r}
+c(3, 1, 4, 1, 5) |> (\(x) x[x > 2])()
+```
+
+### Tibbles
+
+Tibbles are modern data frames with stricter behavior:
+
+```{r}
+# Print difference
+students_tbl
+```
+
+Key differences:
+
+```{r}
+# Data frame allows partial matching
+students_df <- as.data.frame(students_tbl)
+students_df$na  # matches "name" — dangerous
+
+# Tibble does not
+students_tbl$na  # returns NULL with a warning
+```
+
+```{r}
+# Subsetting difference
+class(students_df[, "name"])    # vector
+class(students_tbl[, "name"])   # tibble
+```
+
+::: {.callout-note title="Base R vs Tidyverse"}
+**Data frames** allow partial column matching and silently drop dimensions. **Tibbles** prevent both, catching bugs early. You can convert freely with `as_tibble()` and `as.data.frame()`.
+:::
+
+### Your Turn: Pipe Practice
+
+**Exercise 1.1:** Rewrite this nested code using pipes:
+
+```{r}
+#| eval: false
+sort(unique(tolower(c("Apple", "BANANA", "apple", "Cherry", "banana"))))
+
+c("Apple", "BANANA", "apple", "Cherry", "banana") |> tolower() |> unique() |> sort()
+```
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+c("Apple", "BANANA", "apple", "Cherry", "banana") |>
+  tolower() |>
+  unique() |>
+  sort()
+```
+
+**Exercise 1.2:** Use a pipe chain to: take the vector `c(4, 9, 16, 25, 36)`, compute the square root of each, then calculate the mean.
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+c(4, 9, 16, 25, 36) |> sqrt() |> mean()
+```
+
+**Exercise 1.3:** Create a tibble called `courses` with three columns: `code` (character), `credits` (numeric), and `required` (logical). Include at least 4 rows.
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+courses <- tibble(
+  code = c("CS101", "MATH201", "STAT301", "CS401"),
+  credits = c(3, 4, 3, 3),
+  required = c(TRUE, TRUE, FALSE, TRUE)
+)
+courses
+```
+
+::: {.callout-warning title="Common Mistake"}
+Using `%>%` instead of `|>`:
+
+```{r}
+#| eval: false
+# Wrong (magrittr pipe — not used in this course)
+x %>% mean()
+
+# Right (native pipe)
+x |> mean()
+```
+
+Both work if magrittr is loaded, but we use the native pipe exclusively. It requires no package and works everywhere in R 4.1+.
+:::
+
+### Your Turn: Tibble Exploration
+
+**Exercise 1.4:** Convert `mtcars` to a tibble, move the row names into a column called `car`, and print it.
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+mtcars |>
+  rownames_to_column("car") |>
+  as_tibble()
+```
+
+::: {.callout-tip title="Challenge"}
+Write a single pipe chain that: takes `sales`, extracts the `revenue` column as a vector, computes the median, rounds to 2 decimal places, and wraps it in `paste0("Median revenue: $", ...)`.
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+sales |>
+  pull(revenue) |>
+  median() |>
+  round(2) |>
+  (\(x) paste0("Median revenue: $", x))()
+```
+:::
+
+## Part 2: Core dplyr Verbs
+
+### filter(): Keep Rows
+
+```{r}
+# Single condition
+sales |> filter(region == "North") |> head(3)
+```
+
+```{r}
+# Multiple conditions (AND)
+sales |> filter(region == "North", units > 60) |> head(3)
+```
+
+```{r}
+# OR condition
+sales |> filter(region == "North" | product == "Gadget") |> head(3)
+```
+
+```{r}
+# Set membership
+sales |> filter(product %in% c("Widget", "Gadget")) |> head(3)
+```
+
+### select(): Choose Columns
+
+```{r}
+# By name
+sales |> select(date, region, revenue) |> head(3)
+```
+
+```{r}
+# Drop columns
+sales |> select(-returned, -units) |> head(3)
+```
+
+```{r}
+# Helper functions
+sales |> select(starts_with("r")) |> head(3)
+```
+
+```{r}
+# By type
+sales |> select(where(is.numeric)) |> head(3)
+```
+
+### mutate(): Create Columns
+
+```{r}
+sales |>
+  mutate(
+    profit = revenue * 0.3,
+    high_volume = units > 60
+  ) |>
+  head(5)
+```
+
+New columns can reference columns created in the same `mutate()`:
+
+```{r}
+sales |>
+  mutate(
+    revenue_per_unit = revenue / units,
+    rpu_category = if_else(revenue_per_unit > 5, "high", "low")
+  ) |>
+  head(5)
+```
+
+### summarize(): Aggregate
+
+```{r}
+sales |>
+  summarize(
+    total_rev = sum(revenue),
+    mean_units = mean(units),
+    n_rows = n(),
+    n_products = n_distinct(product)
+  )
+```
+
+### arrange(): Sort
+
+```{r}
+# Ascending (default)
+sales |> arrange(revenue) |> head(5)
+
+# Descending
+sales |> arrange(desc(revenue)) |> head(5)
+
+# Multiple columns
+sales |> arrange(region, desc(revenue)) |> head(5)
+```
+
+::: {.callout-note title="Base R vs Tidyverse"}
+**Base R:** `students[students$gpa > 3.5, c("name", "gpa")]`
+
+**dplyr:** `students_tbl |> filter(gpa > 3.5) |> select(name, gpa)`
+
+Both work. dplyr reads more clearly when operations grow complex.
+:::
+
+### Your Turn: Core Verbs
+
+**Exercise 2.1:** Filter `sales` to show only rows where `returned` is 1 (returned items) in the "West" region.
+
+```{r}
+sales |> filter(returned == 1, region == "West")
+```
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+sales |>
+  filter(returned == 1, region == "West")
+```
+
+**Exercise 2.2:** Select only `date`, `product`, and `units` from `sales`, then arrange by `units` descending. Show the top 10.
+
+```{r}
+sales |> select(c("date", "product", "units")) |> arrange(desc(units)) |> head(10)
+```
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+sales |>
+  select(date, product, units) |>
+  arrange(desc(units)) |>
+  head(10)
+```
+
+**Exercise 2.3:** Add a column `revenue_category` to `sales` that is "high" when revenue > 300, "medium" when revenue is between 100 and 300, and "low" otherwise. Then count how many rows fall into each category.
+
+```{r}
+sales |> mutate(
+  revenue_category = case_when(
+    revenue>300 ~ "high",
+    revenue>= 100 ~ "medium",
+    .default = "low"
+  )
+) |> count(revenue_category)
+```
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+sales |>
+  mutate(
+    revenue_category = case_when(
+      revenue > 300 ~ "high",
+      revenue >= 100 ~ "medium",
+      .default = "low"
+    )
+  ) |>
+  count(revenue_category)
+```
+
+**Exercise 2.4:** Find the average revenue and total units sold for each product type.
+
+```{r}
+sales |> summarise(
+  average_revenue = mean(revenue),
+  total_units = sum(units),
+  .by = product
+)
+```
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+sales |>
+  summarize(
+    avg_revenue = mean(revenue),
+    total_units = sum(units),
+    .by = product
+  )
+```
+
+::: {.callout-warning title="Common Mistake"}
+Forgetting that `filter()` uses `==`, not `=`:
+
+```{r}
+#| error: true
+sales |> filter(region = "North")
+```
+
+Fix: Use `==` for comparison.
+
+```{r}
+#| eval: false
+sales |> filter(region == "North")
+```
+:::
+
+**Exercise 2.5:** Build a pipeline that: filters sales to January 2024 only, selects date, region, and revenue, adds a column `day_of_week` using `weekdays(date)`, then sorts by revenue descending. Show the top 5.
+
+```{r}
+sales
+sales |> filter(date >= "2024-01-01", date < "2024-02-01") |> select(date, region, revenue) |> mutate(day_of_week = wday(date, label = TRUE, abbr = FALSE, locale = "hu_HU.UTF-8")) |> arrange(desc(revenue)) |> head(5)
+```
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+sales |>
+  filter(date >= "2024-01-01", date <= "2024-01-31") |>
+  select(date, region, revenue) |>
+  mutate(day_of_week = weekdays(date)) |>
+  arrange(desc(revenue)) |>
+  head(5)
+```
+
+::: {.callout-tip title="Challenge"}
+Using `students_tbl`, write a pipeline that: adds a column `standing` ("Dean's List" if gpa >= 3.7, "Good" if gpa >= 3.0, "Probation" otherwise), selects name, major, gpa, and standing, and arranges by gpa descending.
+
+```{r}
+students_tbl |> mutate(
+  standing = case_when(
+    gpa >= 3.7 ~ "Dean's list",
+    gpa >= 3.0 ~ "Good",
+    .default = "Probation"
+  )
+) |> select(name,major,gpa,standing) |> arrange(desc(gpa))
+```
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+students_tbl |>
+  mutate(
+    standing = case_when(
+      gpa >= 3.7 ~ "Dean's List",
+      gpa >= 3.0 ~ "Good",
+      .default = "Probation"
+    )
+  ) |>
+  select(name, major, gpa, standing) |>
+  arrange(desc(gpa))
+```
+:::
+
+## Part 3: Advanced dplyr
+
+### Grouped Operations with .by
+
+```{r}
+# Summarize by group
+sales |>
+  summarize(
+    avg_revenue = mean(revenue),
+    max_units = max(units),
+    .by = region
+  )
+```
+
+```{r}
+# Multiple grouping columns
+sales |>
+  summarize(
+    total_revenue = sum(revenue),
+    .by = c(region, product)
+  )
+```
+
+```{r}
+# .by works with mutate (adds group-level values without collapsing)
+sales |>
+  mutate(region_mean = mean(revenue), .by = region) |>
+  select(date, region, revenue, region_mean) |>
+  head(5)
+```
+
+::: {.callout-note title="Base R vs Tidyverse"}
+**group_by approach:**
+```{r}
+#| eval: false
+sales |>
+  group_by(region) |>
+  summarize(avg = mean(revenue)) |>
+  ungroup()
+```
+
+**.by approach (preferred):**
+```{r}
+#| eval: false
+sales |>
+  summarize(avg = mean(revenue), .by = region)
+```
+
+Both produce the same result. `.by` never leaves leftover grouping.
+:::
+
+### across(): Multiple Columns
+
+```{r}
+# Apply one function to multiple columns
+sales |>
+  summarize(across(c(units, revenue), list(avg=mean,max=max),.names="{.col}({.fn})"), .by = region)
+```
+
+```{r}
+# Named list of functions
+sales |>
+  summarize(
+    across(c(units, revenue), list(avg = mean, sd = sd)),
+    .by = region
+  )
+```
+
+```{r}
+# With lambda and column selection by type
+sales |>
+  summarize(
+    across(where(is.numeric), \(x) round(mean(x), 1)),
+    .by = region
+  )
+```
+
+### Joins
+
+```{r}
+# Lookup table
+regions <- tibble(
+  region = c("North", "South", "West"),
+  manager = c("Alice", "Bob", "Carlos"),
+  target = c(50000, 45000, 55000)
+)
+```
+
+```{r}
+# left_join: keep all sales rows, add region info
+sales |>
+  left_join(regions, by = "region") |>
+  head(5)
+```
+
+```{r}
+# semi_join: keep sales rows that have a match (no new columns)
+high_targets <- regions |> filter(target >= 50000)
+
+high_targets
+regions
+sales
+
+sales |>
+  semi_join(high_targets, by = "region") |>
+  count(region)
+```
+
+```{r}
+# anti_join: keep sales rows that do NOT match
+sales |>
+  anti_join(high_targets, by = "region") |>
+  count(region)
+```
+
+### Your Turn: Advanced dplyr
+
+**Exercise 3.1:** Compute the total revenue and average units per region per product.
+
+```{r}
+sales |> summarise(
+  total_revenue = sum(revenue),
+  average_unit = mean(units),
+  .by = c(region, product)
+)
+```
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+sales |>
+  summarize(
+    total_revenue = sum(revenue),
+    avg_units = mean(units),
+    .by = c(region, product)
+  )
+```
+
+**Exercise 3.2:** For each region, find the date with the highest total revenue (sum across all products on that date).
+
+```{r}
+sales |> summarise(daily_total = sum(revenue), .by=c(region,date)) |> slice_max(daily_total, by=region, n=1)
+```
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+sales |>
+  summarize(daily_total = sum(revenue), .by = c(region, date)) |>
+  slice_max(daily_total, n = 1, by = region)
+```
+
+**Exercise 3.3:** Use `across()` to compute the minimum and maximum of every numeric column in `sales`, grouped by region.
+
+```{r}
+sales |> summarise(across(where(is.numeric), list(min=min,max=max)), .by = region)
+```
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+sales |>
+  summarize(
+    across(where(is.numeric), list(min = min, max = max)),
+    .by = region
+  )
+```
+
+**Exercise 3.4:** Add a column `pct_of_region` that shows each row's revenue as a percentage of its region's total revenue.
+
+```{r}
+sales |> mutate(pct_of_region = revenue / sum(revenue)*100,.by=region)
+```
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+sales |>
+  mutate(
+    pct_of_region = revenue / sum(revenue) * 100,
+    .by = region
+  ) |>
+  select(date, region, revenue, pct_of_region) |>
+  head(5)
+```
+
+**Exercise 3.5:** Join `regions` to `sales`, then compute each region's total revenue as a percentage of its target.
+
+```{r}
+
+sales |> summarise(total_revenue = sum(revenue),.by = region) |> left_join(regions, by="region") |> mutate(
+  pct_total = total_revenue / target *100
+)
+```
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+sales |>
+  summarize(total_revenue = sum(revenue), .by = region) |>
+  left_join(regions, by = "region") |>
+  mutate(pct_of_target = round(total_revenue / target * 100, 1)) |>
+  select(region, manager, total_revenue, target, pct_of_target)
+```
+
+::: {.callout-warning title="Common Mistake"}
+Forgetting `.by` returns ungrouped data. If you use `group_by()` instead, the result stays grouped:
+
+```{r}
+# This result is still grouped!
+grouped_result <- sales |>
+  group_by(region) |>
+  summarize(total = sum(revenue))
+
+# Check:
+group_vars(grouped_result)
+```
+
+With `.by`, the result is always ungrouped:
+
+```{r}
+ungrouped_result <- sales |>
+  summarize(total = sum(revenue), .by = region)
+
+group_vars(ungrouped_result)
+```
+:::
+
+**Think About It:** When would you choose `semi_join()` over `filter()` with `%in%`? What advantage does `anti_join()` give you over negated filtering?
+
+::: {.callout-tip title="Challenge"}
+Create a complete analysis pipeline:
+
+1. Filter sales to Q1 2024 (January through March)
+2. Join with the regions table
+3. Compute total revenue and return rate (mean of returned) per region per product
+4. Add a column showing each row's revenue as a percentage of the region target
+5. Arrange by total revenue descending
+
+```{r}
+sales |> 
+  filter(date>="2024-01-01", date <"2024-04-01") |> 
+  left_join(regions, by="region") |>
+  summarise(
+    total_rev = sum(revenue),
+    return_rate = mean(returned),
+    target = first(target),
+    .by = c(region,product)
+  ) |>
+  mutate(
+    pct_total = total_rev / target *100
+  )  |>
+  arrange(desc(total_rev))  
+```
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+sales |>
+  filter(date >= "2024-01-01", date <= "2024-03-31") |>
+  left_join(regions, by = "region") |>
+  summarize(
+    total_revenue = sum(revenue),
+    return_rate = mean(returned),
+    target = first(target),
+    .by = c(region, product)
+  ) |>
+  mutate(pct_of_target = round(total_revenue / target * 100, 1)) |>
+  arrange(desc(total_revenue))
+```
+:::
+
+## Session Synthesis
+
+### Connect the Dots
+
+Build a "Regional Performance Report" pipeline that:
+
+1. Starts with `sales`
+2. Creates a `month` column from `date`
+3. Computes monthly revenue totals per region
+4. Joins with the `regions` table to get targets
+5. Calculates a monthly pro-rated target (annual target / 12)
+6. Flags months as "on_track" or "behind" based on whether monthly revenue met the pro-rated target
+7. Summarizes: for each region, count how many months were on track vs behind
+
+```{r}
+sales |> 
+  mutate(
+    month = month(date, label = TRUE)
+  ) |>
+  summarise(
+    monthly_rev = sum(revenue),
+    .by = c(month,region)
+  )  |>
+  left_join(regions, by = "region")  |>
+  mutate(
+    pro_rated_target = target / 12,
+    .by = c(month,region)
+  ) |>
+  mutate(
+    flag = case_when(
+      monthly_rev > pro_rated_target ~ "On track",
+      .default = "Behind"
+    )
+  )  |>
+  summarise(
+    count = n(),
+    .by = c(flag, region)
+  )  
+
+
+```
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+sales |>
+  mutate(month = format(date, "%Y-%m")) |>
+  summarize(monthly_revenue = sum(revenue), .by = c(region, month)) |>
+  left_join(regions, by = "region") |>
+  mutate(
+    monthly_target = target / 12,
+    status = if_else(monthly_revenue >= monthly_target, "on_track", "behind")
+  ) |>
+  count(region, manager, status) |>
+  arrange(region, status)
+```
+
+### Key Takeaways
+
+1. The pipe `|>` passes left side as first argument to right side — read data pipelines top to bottom
+2. Five core dplyr verbs handle most data manipulation: filter, select, mutate, summarize, arrange
+3. Use `.by` for grouped operations — it never leaves leftover grouping
+4. `across()` applies functions to multiple columns at once
+5. Joins combine datasets: left_join adds columns, semi_join and anti_join filter rows
+
+### Prepare for Next Session
+
+**Session 6: Reshaping and Importing**
+
+You will learn:
+
+- tidyr for reshaping data (wide to long and back)
+- readr, readxl, haven for importing different file formats
+- stringr for string manipulation
+
+Run `library(tidyverse)` and confirm it loads without errors.

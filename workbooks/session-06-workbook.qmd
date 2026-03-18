@@ -1,0 +1,682 @@
+---
+title: "Session 6: Reshaping and Importing"
+subtitle: "R Programming Workbook"
+author: "R Programming Course"
+date: today
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    toc-location: left
+    code-fold: show
+    code-tools: true
+    code-overflow: wrap
+    theme: cosmo
+    self-contained: true
+execute:
+  echo: true
+  warning: false
+  message: false
+---
+
+::: {.callout-note title="Learning Objectives"}
+After completing this session, you will be able to:
+
+1. Reshape data from wide to long using `pivot_longer()`
+2. Reshape data from long to wide using `pivot_wider()`
+3. Split and combine columns with `separate_wider_*()` and `unite()`
+4. Import CSV, Excel, and statistical software files using readr, readxl, and haven
+5. Specify column types and diagnose parsing problems
+6. Manipulate strings using stringr functions
+7. Detect, replace, split, and combine strings with literal patterns
+8. Combine reshaping, importing, and string tools in data pipelines
+:::
+
+```{r}
+#| label: setup
+library(tidyverse)
+
+set.seed(42)
+sales <- tibble(
+  date = rep(seq(as.Date("2024-01-01"), as.Date("2024-12-31"), by = "day"), 3),
+  region = rep(c("North", "South", "West"), each = 366),
+  product = sample(c("Widget", "Gadget", "Doohickey"), 366 * 3, replace = TRUE),
+  units = rpois(366 * 3, lambda = 50),
+  revenue = round(runif(366 * 3, 10, 500), 2),
+  returned = rbinom(366 * 3, 1, 0.05)
+)
+```
+
+## Part 1: Reshaping with tidyr
+
+### pivot_longer(): Wide to Long
+
+When data has values spread across column names, you need to make it longer:
+
+```{r}
+# Wide format: one column per quarter
+quarterly_wide <- tibble(
+  region = c("North", "South", "West"),
+  Q1 = c(12500, 11800, 14200),
+  Q2 = c(13100, 12400, 15000),
+  Q3 = c(14800, 13200, 16100),
+  Q4 = c(15200, 14000, 16800)
+)
+quarterly_wide
+```
+
+```{r}
+# Pivot to long: one row per region-quarter combination
+quarterly_long <- quarterly_wide |>
+  pivot_longer(
+    cols = Q1:Q4,
+    names_to = "quarter",
+    values_to = "revenue"
+  )
+quarterly_long
+```
+
+The `cols` argument uses the same selection helpers as `select()`:
+
+```{r}
+# These all do the same thing
+quarterly_wide |> pivot_longer(cols = -region, names_to = "quarter", values_to = "revenue")
+quarterly_wide |> pivot_longer(cols = starts_with("Q"), names_to = "quarter", values_to = "revenue")
+```
+
+### pivot_wider(): Long to Wide
+
+```{r}
+quarterly_long |>
+  pivot_wider(
+    names_from = quarter,
+    values_from = revenue
+  )
+```
+
+When multiple values exist per cell, use `values_fn`:
+
+```{r}
+# Summarize sales into a region x product table
+sales |>
+  pivot_wider(
+    id_cols = region,
+    names_from = product,
+    values_from = revenue,
+    values_fn = sum
+  )
+```
+
+### separate and unite
+
+```{r}
+# Split a combined column
+events <- tibble(
+  event = c("2024-01-15_North_Widget", "2024-02-20_South_Gadget"),
+  count = c(100, 85)
+)
+
+events |>
+  separate_wider_delim(
+    event,
+    delim = "_",
+    names = c("date", "region", "product")
+  )
+```
+
+```{r}
+# Combine columns
+tibble(year = c(2024, 2024), month = c(1, 6), day = c(15, 20)) |>
+  unite("date_str", year, month, day, sep = "-")
+```
+
+::: {.callout-note title="Base R vs Tidyverse"}
+**Base R reshape:** `reshape(df, direction = "long", ...)` — works but has confusing argument names.
+
+**tidyr:** `pivot_longer()` and `pivot_wider()` — clear, consistent, and well-documented.
+:::
+
+### Your Turn: Reshaping
+
+**Exercise 1.1:** Pivot this exam data to long format with columns `student`, `exam`, and `score`:
+
+```{r}
+exams <- tibble(
+  student = c("Alice", "Bob", "Carlos"),
+  midterm = c(88, 72, 95),
+  final = c(91, 80, 88),
+  project = c(85, 90, 92)
+)
+```
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+exams |>
+  pivot_longer(
+    cols = -student,
+    names_to = "exam",
+    values_to = "score"
+  )
+```
+
+**Exercise 1.2:** Take the `sales` dataset, compute average revenue per region per product, then pivot so each product is a column.
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+sales |>
+  summarize(avg_revenue = round(mean(revenue), 2), .by = c(region, product)) |>
+  pivot_wider(names_from = product, values_from = avg_revenue)
+```
+
+**Exercise 1.3:** Separate this column into `city` and `state`:
+
+```{r}
+locations <- tibble(
+  id = 1:4,
+  place = c("Portland, OR", "Austin, TX", "Denver, CO", "Boston, MA")
+)
+```
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+locations |>
+  separate_wider_delim(place, delim = ", ", names = c("city", "state"))
+```
+
+**Exercise 1.4:** Create monthly summary of sales (total revenue per month per region), then pivot so each month is a column. Hint: create a month column with `format(date, "%b")`.
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+sales |>
+  mutate(month = format(date, "%b")) |>
+  summarize(total = round(sum(revenue), 0), .by = c(region, month)) |>
+  pivot_wider(names_from = month, values_from = total)
+```
+
+::: {.callout-warning title="Common Mistake"}
+Forgetting to aggregate before `pivot_wider()`:
+
+```{r}
+#| eval: false
+# This creates list-columns because multiple values exist per cell
+sales |>
+  pivot_wider(names_from = region, values_from = revenue)
+```
+
+Fix: Either summarize first, or use `values_fn`:
+
+```{r}
+#| eval: false
+sales |>
+  pivot_wider(
+    id_cols = date,
+    names_from = region,
+    values_from = revenue,
+    values_fn = sum
+  )
+```
+:::
+
+::: {.callout-tip title="Challenge"}
+Starting from the `exams` data, compute each student's average score, add a column indicating if they passed (average >= 80), pivot to wide format with students as columns and exams as rows, then add a "mean" row at the bottom.
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+exams_long <- exams |>
+  pivot_longer(-student, names_to = "exam", values_to = "score")
+
+# Add mean row
+means <- exams_long |>
+  summarize(score = mean(score), .by = student) |>
+  mutate(exam = "mean")
+
+bind_rows(exams_long, means) |>
+  pivot_wider(names_from = student, values_from = score)
+```
+:::
+
+## Part 2: Data Import
+
+### Reading CSV Files with readr
+
+```{r}
+# Create a temp file for demonstration
+temp <- tempfile(fileext = ".csv")
+write_csv(sales |> head(50), temp)
+
+# Read it back
+imported <- read_csv(temp)
+imported |> head(3)
+```
+
+readr automatically detects column types and shows the result:
+
+```{r}
+# Explicit column types for safety
+read_csv(temp, col_types = cols(
+  date = col_date(),
+  region = col_character(),
+  product = col_character(),
+  units = col_integer(),
+  revenue = col_double(),
+  returned = col_integer()
+)) |> head(3)
+```
+
+### Handling Messy Input
+
+```{r}
+# Data with problems
+messy <- "name,age,score\nAlice,21,95\nBob,twenty-three,88\nCarlos,22,A+\n"
+
+result <- read_csv(I(messy), col_types = cols(
+  name = col_character(),
+  age = col_integer(),
+  score = col_double()
+))
+result
+```
+
+```{r}
+# Check what went wrong
+problems(result)
+```
+
+### Your Turn: Data Import
+
+**Exercise 2.1:** Read this inline CSV data and specify appropriate column types:
+
+```{r}
+raw <- "product,price,in_stock,launch_date
+Widget,29.99,TRUE,2024-03-15
+Gadget,49.50,FALSE,2024-06-01
+Doohickey,15.00,TRUE,2024-01-10
+"
+```
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+read_csv(I(raw), col_types = cols(
+  product = col_character(),
+  price = col_double(),
+  in_stock = col_logical(),
+  launch_date = col_date()
+))
+```
+
+**Exercise 2.2:** This CSV has some issues. Read it, check for problems, and fix the data:
+
+```{r}
+bad_data <- "id,value,category
+1,100,A
+2,N/A,B
+3,250,C
+4,175,
+5,,A
+"
+```
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+# Read with na argument to handle "N/A"
+read_csv(I(bad_data), na = c("", "NA", "N/A")) |>
+  mutate(
+    value = replace_na(value, 0),
+    category = replace_na(category, "Unknown")
+  )
+```
+
+**Exercise 2.3:** Write the `sales` summary (total revenue by region) to a temporary CSV file, then read it back and verify the data matches.
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+# Write
+summary_data <- sales |>
+  summarize(total_revenue = sum(revenue), .by = region)
+
+temp_out <- tempfile(fileext = ".csv")
+write_csv(summary_data, temp_out)
+
+# Read back
+read_csv(temp_out)
+```
+
+::: {.callout-warning title="Common Mistake"}
+Using `read.csv()` (base R) instead of `read_csv()` (readr):
+
+```{r}
+# Base R: converts strings to factors (in older R), slower, returns data.frame
+base_result <- read.csv(temp)
+class(base_result)
+
+# readr: returns tibble, shows types, faster
+readr_result <- read_csv(temp, show_col_types = FALSE)
+class(readr_result)
+```
+
+Use `read_csv()` (with underscore) in tidyverse workflows.
+:::
+
+::: {.callout-tip title="Challenge"}
+Create a complete import-clean-reshape pipeline: Read the inline CSV below, parse dates, pivot to long format, and compute the average value per metric.
+
+```{r}
+multi_metric <- "date,temperature,humidity,pressure
+2024-01-01,22.5,65,1013
+2024-01-02,23.1,62,1015
+2024-01-03,21.8,70,1010
+2024-01-04,24.0,58,1012
+"
+```
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+read_csv(I(multi_metric), col_types = cols(date = col_date())) |>
+  pivot_longer(
+    cols = -date,
+    names_to = "metric",
+    values_to = "value"
+  ) |>
+  summarize(avg_value = mean(value), .by = metric)
+```
+:::
+
+## Part 3: String Manipulation with stringr
+
+### Core stringr Functions
+
+```{r}
+library(stringr)
+
+fruits <- c("apple", "banana", "cherry", "date", "elderberry")
+
+# Basic operations
+str_length(fruits)
+str_to_upper(fruits)
+str_to_lower(fruits)
+str_to_title(fruits)
+str_sub(fruits, 1, 3)
+str_pad(fruits, width = 12, side = "right", pad = ".")
+```
+
+### Detecting and Locating Text
+
+`str_detect()` checks if a substring exists. `str_starts()` and `str_ends()` check prefixes and suffixes.
+
+```{r}
+# Detect a literal substring
+str_detect(fruits, "an")       # contains "an"?
+str_detect(fruits, "berry")    # contains "berry"?
+
+# Check prefix and suffix
+str_starts(fruits, "ch")       # starts with "ch"?
+str_ends(fruits, "e")          # ends with "e"?
+
+# Count occurrences of a literal substring
+str_count(fruits, "r")         # how many "r"s?
+str_count(c("banana", "aardvark"), "a")
+
+# Locate position of a substring
+str_locate(fruits, "rr")       # position of "rr"
+```
+
+### Replacing and Removing Text
+
+```{r}
+cities <- c("New York City", "Los Angeles City", "San Francisco Bay")
+
+# Replace first occurrence
+str_replace(cities, "City", "Metro")
+
+# Replace all occurrences
+messy <- c("one--two--three", "a--b")
+str_replace_all(messy, "--", "-")
+
+# Remove text (replace with nothing)
+str_remove(cities, " City")
+str_remove_all(c("a.b.c", "x.y"), ".")  # careful: removes all characters!
+str_remove_all(c("a.b.c", "x.y"), fixed("."))  # correct: use fixed() for literal dots
+```
+
+Use `fixed()` when your pattern contains characters like `.`, `$`, `(`, `)`, `*` that have special meaning. We will learn about these special meanings in Session 14 when we cover regular expressions.
+
+### Splitting and Extracting
+
+```{r}
+# Split strings by a delimiter
+str_split("apple-banana-cherry", "-")
+
+# str_split returns a list; simplify for a single string
+str_split_1("apple-banana-cherry", "-")
+
+# Extract words by position
+sentences <- c("The quick brown fox", "R is great for data")
+word(sentences, 1)       # first word
+word(sentences, -1)      # last word
+word(sentences, 2, 3)    # words 2 through 3
+```
+
+### Combining Strings
+
+```{r}
+# str_c (like paste0)
+str_c("Hello", "World", sep = " ")
+
+# str_glue (like Python f-strings)
+name <- "Alice"
+score <- 95
+str_glue("{name} scored {score} out of 100")
+
+# Vectorized
+str_c("Student_", 1:5)
+```
+
+### Cleaning Strings
+
+```{r}
+# Trim leading/trailing whitespace
+str_trim("  hello world  ")
+
+# Squish: trim + collapse internal whitespace
+str_squish("  too   many    spaces  ")
+
+# Substring extraction by position
+codes <- c("PRD-001", "PRD-042", "PRD-100")
+str_sub(codes, 5, 7)  # characters 5 through 7
+```
+
+::: {.callout-note title="Base R vs Tidyverse"}
+**Base R:** `paste()` concatenates strings. `grep("text", x)` returns indices. `grepl("text", x)` returns logical. `gsub("old", "new", x)` replaces all. Argument order varies.
+
+**stringr:** `str_c()` concatenates. `str_detect(x, "text")` returns logical. `str_replace_all(x, "old", "new")` replaces all. String is always first, making it pipe-friendly.
+:::
+
+### Your Turn: String Manipulation
+
+**Exercise 3.1:** Given this vector, extract just the numeric part from each string:
+
+```{r}
+codes <- c("PRD-001", "PRD-042", "PRD-100", "PRD-007")
+```
+
+Hint: Use `str_split_1()` or `str_sub()` to extract by position.
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+# Method 1: split on "-" and take the second part
+sapply(str_split(codes, "-"), \(x) x[2])
+
+# Method 2: extract by position (characters 5-7)
+str_sub(codes, 5, 7)
+```
+
+**Exercise 3.2:** Clean these messy names: trim whitespace, convert to title case, replace multiple spaces with a single space.
+
+```{r}
+messy_names <- c("  alice  smith  ", "BOB JONES", "  carlos   garcia")
+```
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+messy_names |>
+  str_trim() |>
+  str_squish() |>
+  str_to_title()
+```
+
+**Exercise 3.3:** From the `sales` dataset, create a `label` column that combines region and product as "Region: Product" (e.g., "North: Widget").
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+sales |>
+  mutate(label = str_glue("{region}: {product}")) |>
+  distinct(label) |>
+  arrange(label)
+```
+
+**Exercise 3.4:** Filter `sales` to only rows where the product name contains "gadget" (case-insensitive). Hint: convert to lowercase first, then detect.
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+sales |>
+  filter(str_detect(str_to_lower(product), "gadget")) |>
+  count(product)
+```
+
+**Exercise 3.5:** Parse these log entries to extract the timestamp, level, and message using `str_sub()` and `str_split()`:
+
+```{r}
+logs <- c(
+  "[2024-01-15 08:30:00] INFO: Server started",
+  "[2024-01-15 08:31:15] WARN: High memory usage",
+  "[2024-01-15 08:32:00] ERROR: Connection refused"
+)
+```
+
+Hint: The timestamp always spans characters 2-20. Use `str_remove()` and `str_split_1()` for the rest.
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+tibble(raw = logs) |>
+  mutate(
+    timestamp = str_sub(raw, 2, 20),
+    rest = str_sub(raw, 23),
+    level = word(rest, 1) |> str_remove(":"),
+    message = str_remove(rest, word(rest, 1)) |> str_trim()
+  ) |>
+  select(-rest)
+```
+
+::: {.callout-warning title="Common Mistake"}
+Forgetting `fixed()` when replacing special characters:
+
+```{r}
+str_remove_all("price: $10.99", ".")  # removes everything!
+str_remove_all("price: $10.99", fixed("."))  # removes only dots
+```
+
+Characters like `.`, `$`, `(`, `)`, `*`, `+`, `?` have special meaning in pattern matching. When you want to match them literally, wrap the pattern in `fixed()`. We will learn what these special meanings are in Session 14.
+:::
+
+::: {.callout-tip title="Challenge"}
+Parse these file paths into a tibble with columns for directory, filename, and extension:
+
+```{r}
+paths <- c(
+  "data/raw/sales.csv",
+  "output/figures/chart.png",
+  "R/analysis.R",
+  "docs/report.qmd"
+)
+```
+
+Hint: Split on `"/"` for directory parts and `"."` for the extension.
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+tibble(path = paths) |>
+  mutate(
+    parts = str_split(path, "/"),
+    filename_ext = sapply(parts, \(x) x[length(x)]),
+    directory = sapply(parts, \(x) str_c(x[-length(x)], collapse = "/")),
+    filename = word(filename_ext, 1, sep = fixed(".")),
+    extension = word(filename_ext, -1, sep = fixed("."))
+  ) |>
+  select(directory, filename, extension)
+```
+:::
+
+## Session Synthesis
+
+### Connect the Dots
+
+Build a data cleaning pipeline that combines all three skills. Start with this messy data:
+
+```{r}
+messy_sales <- "date|rep_name|region_product|amount
+2024-01-15|  Alice Smith  |North_Widget|$1,250.00
+2024-01-16|BOB JONES|South_Gadget|$890.50
+2024-01-17|  carlos garcia |West_Doohickey|$2,100.75
+2024-01-18|DIANA LEE|North_Gadget|$445.00
+"
+```
+
+Your pipeline should:
+
+1. Read the pipe-delimited data
+2. Clean the rep names (trim, title case)
+3. Separate region_product into two columns
+4. Remove the "$" and "," from amount and convert to numeric
+5. Compute total and average amount per region
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+read_delim(I(messy_sales), delim = "|") |>
+  mutate(
+    rep_name = rep_name |> str_trim() |> str_squish() |> str_to_title()
+  ) |>
+  separate_wider_delim(region_product, delim = "_", names = c("region", "product")) |>
+  mutate(
+    amount = amount |> str_remove_all(fixed("$")) |> str_remove_all(",") |> as.numeric()
+  ) |>
+  summarize(
+    total_amount = sum(amount),
+    avg_amount = mean(amount),
+    .by = region
+  )
+```
+
+### Key Takeaways
+
+1. `pivot_longer()` stacks columns into rows (wide to long). `pivot_wider()` spreads rows into columns (long to wide).
+2. readr's `read_csv()` is the standard import tool. Always check `problems()` and specify `col_types` for safety.
+3. stringr provides consistent, pipe-friendly string functions. Every function starts with `str_` and takes the string as the first argument.
+4. These three skills combine into powerful data cleaning pipelines: import, reshape, clean strings.
+
+### Prepare for Next Session
+
+**Session 7: Specialized Data Types**
+
+You will learn:
+
+- forcats for factor handling (ordered categories)
+- lubridate for dates and times
+- purrr for functional programming with lists
+
+Run `library(forcats)`, `library(lubridate)`, and `library(purrr)` to confirm they load.
