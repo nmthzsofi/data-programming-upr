@@ -54,6 +54,20 @@ sales <- tibble(
 When data has values spread across column names, you need to make it longer:
 
 ```{r}
+library(janitor)
+airquality |> clean_names() |> summarise(avg_temp = mean(temp), .by = month) |> mutate(
+  month = case_when(
+    month == 5 ~ "May",
+    month == 6 ~ "June",
+    month == 7 ~ "July",
+    month == 8 ~ "August",
+    .default = "September"
+    )
+  ) |> pivot_wider(names_from = month, values_from = avg_temp)
+
+```
+
+```{r}
 # Wide format: one column per quarter
 quarterly_wide <- tibble(
   region = c("North", "South", "West"),
@@ -150,6 +164,15 @@ exams <- tibble(
 ```
 
 ```{r}
+exams_long <- exams |> 
+  pivot_longer(
+    cols = -student,
+    names_to = "exams",
+    values_to = "score")
+
+exams_long    
+```
+```{r}
 #| code-fold: true
 #| code-summary: "Solution"
 exams |>
@@ -163,6 +186,14 @@ exams |>
 **Exercise 1.2:** Take the `sales` dataset, compute average revenue per region per product, then pivot so each product is a column.
 
 ```{r}
+sales_summary <- sales |> summarise(avg_rev = mean(revenue), .by = c(product,region)) |> pivot_wider(
+  names_from = product,
+  values_from = avg_rev
+)
+
+sales_summary
+```
+```{r}
 #| code-fold: true
 #| code-summary: "Solution"
 sales |>
@@ -172,11 +203,16 @@ sales |>
 
 **Exercise 1.3:** Separate this column into `city` and `state`:
 
+
 ```{r}
 locations <- tibble(
   id = 1:4,
   place = c("Portland, OR", "Austin, TX", "Denver, CO", "Boston, MA")
 )
+```
+
+```{r}
+locations |> separate_wider_delim(place, delim=",", names=c("city","state"))
 ```
 
 ```{r}
@@ -187,6 +223,11 @@ locations |>
 ```
 
 **Exercise 1.4:** Create monthly summary of sales (total revenue per month per region), then pivot so each month is a column. Hint: create a month column with `format(date, "%b")`.
+
+```{r}
+sales_sum <- sales |> separate_wider_delim(date, delim="-", names=c("year","month", "day")) |>summarise(total_revenue = sum(revenue), .by = c(month, region)) |> pivot_wider(names_from=month, values_from=total_revenue)
+sales_sum
+```
 
 ```{r}
 #| code-fold: true
@@ -300,6 +341,16 @@ Doohickey,15.00,TRUE,2024-01-10
 ```
 
 ```{r}
+data_raw <- read_csv(I(raw), col_names = cols(
+  product = col_character(),
+  price = col_double(),
+  in_stock = col_logical(),
+  launch_date = col_date()
+))
+
+data_raw
+```
+```{r}
 #| code-fold: true
 #| code-summary: "Solution"
 read_csv(I(raw), col_types = cols(
@@ -323,6 +374,16 @@ bad_data <- "id,value,category
 ```
 
 ```{r}
+bad_data_df <- read_csv(I(bad_data), na = c("", "NA", "N/A")) |> mutate(
+  value = replace_na(value,0),
+  category = replace_na(category,"Unknown")
+)
+
+bad_data_df
+problems(bad_data_df)
+spec(bad_data_df)
+```
+```{r}
 #| code-fold: true
 #| code-summary: "Solution"
 # Read with na argument to handle "N/A"
@@ -334,6 +395,14 @@ read_csv(I(bad_data), na = c("", "NA", "N/A")) |>
 ```
 
 **Exercise 2.3:** Write the `sales` summary (total revenue by region) to a temporary CSV file, then read it back and verify the data matches.
+
+```{r}
+sales_summary <- sales |> summarise(total_rev = sum(revenue), .by = region)
+temp <-tempfile(fileext=".csv")
+write_csv(sales_summary, temp) 
+
+read_csv(temp)
+```
 
 ```{r}
 #| code-fold: true
@@ -511,6 +580,11 @@ codes <- c("PRD-001", "PRD-042", "PRD-100", "PRD-007")
 Hint: Use `str_split_1()` or `str_sub()` to extract by position.
 
 ```{r}
+split_data <- sapply(str_split(codes,"-"), \(x) x[2])
+str_sub(codes, 5,7)
+```
+
+```{r}
 #| code-fold: true
 #| code-summary: "Solution"
 # Method 1: split on "-" and take the second part
@@ -527,6 +601,9 @@ messy_names <- c("  alice  smith  ", "BOB JONES", "  carlos   garcia")
 ```
 
 ```{r}
+messy_names |> str_trim() |> str_squish() |> str_to_title()
+```
+```{r}
 #| code-fold: true
 #| code-summary: "Solution"
 messy_names |>
@@ -538,6 +615,12 @@ messy_names |>
 **Exercise 3.3:** From the `sales` dataset, create a `label` column that combines region and product as "Region: Product" (e.g., "North: Widget").
 
 ```{r}
+sales |> mutate(
+  label = str_glue("{region}: {product}")
+) |> distinct(label)
+```
+
+```{r}
 #| code-fold: true
 #| code-summary: "Solution"
 sales |>
@@ -547,6 +630,10 @@ sales |>
 ```
 
 **Exercise 3.4:** Filter `sales` to only rows where the product name contains "gadget" (case-insensitive). Hint: convert to lowercase first, then detect.
+
+```{r}
+sales |> filter(str_detect(str_to_lower(product),"gadget"))
+```
 
 ```{r}
 #| code-fold: true
@@ -567,6 +654,18 @@ logs <- c(
 ```
 
 Hint: The timestamp always spans characters 2-20. Use `str_remove()` and `str_split_1()` for the rest.
+
+```{r}
+raw <- tibble(logs)
+raw
+cleaned_logs <- raw |> mutate(
+  date = str_sub(logs,2,20),
+  rest = str_sub(logs,23),
+  level = word(rest,1) |> str_remove(":"),
+  message = str_remove(rest, word(rest,1)) |> str_trim()
+) |> select(-rest)
+cleaned_logs
+```
 
 ```{r}
 #| code-fold: true
@@ -643,6 +742,23 @@ Your pipeline should:
 3. Separate region_product into two columns
 4. Remove the "$" and "," from amount and convert to numeric
 5. Compute total and average amount per region
+
+```{r}
+read_delim(I(messy_sales), delim = "|") |>
+  mutate(
+    rep_name = rep_name |> str_trim() |> str_squish() |> str_to_title()
+  ) |>
+  separate_wider_delim(region_product, delim = "_", names = c("region", "product")) |> mutate(
+    amount = amount |> str_remove_all(fixed("$")) |> str_remove_all(fixed(",")) |> as.numeric()
+  ) |> summarise(
+    total_amount = sum(amount),
+    average_amount = mean(amount),
+    .by = region
+  )
+  
+
+
+```
 
 ```{r}
 #| code-fold: true
