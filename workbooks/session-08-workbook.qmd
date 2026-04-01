@@ -1,0 +1,715 @@
+---
+title: "Session 8: Data Visualization with ggplot2"
+subtitle: "R Programming Workbook"
+author: "R Programming Course"
+date: today
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    toc-location: left
+    code-fold: show
+    code-tools: true
+    code-overflow: wrap
+    theme: cosmo
+    self-contained: true
+execute:
+  echo: true
+  warning: false
+  message: false
+---
+
+::: {.callout-note title="Learning Objectives"}
+By the end of this session you will be able to:
+
+1. Build plots using ggplot2's grammar of graphics (data + aesthetics + geoms)
+2. Map variables to aesthetics inside `aes()` and set constants outside it
+3. Choose appropriate geoms for different data types and questions
+4. Create small multiples with `facet_wrap()` and `facet_grid()`
+5. Control scales, labels, and coordinate systems
+6. Add annotations and text to plots
+7. Apply and customize themes for publication-ready figures
+8. Combine multiple plots with the patchwork package
+9. Export plots with `ggsave()`
+:::
+
+```{r}
+#| label: setup
+library(tidyverse)
+library(patchwork)
+
+set.seed(42)
+sales <- tibble(
+  date = rep(seq(as.Date("2024-01-01"), as.Date("2024-12-31"), by = "day"), 3),
+  region = rep(c("North", "South", "West"), each = 366),
+  product = sample(c("Widget", "Gadget", "Doohickey"), 366 * 3, replace = TRUE),
+  units = rpois(366 * 3, lambda = 50),
+  revenue = round(runif(366 * 3, 10, 500), 2),
+  returned = rbinom(366 * 3, 1, 0.05)
+)
+```
+
+## Part 1: ggplot2 Foundations
+
+Every ggplot2 plot needs three things: data, aesthetic mappings, and at least one geom layer. You build plots by adding layers with `+`.
+
+### The Minimal Plot
+
+```{r}
+ggplot(data = sales, mapping = aes(x = units, y = revenue)) +
+  geom_point()
+```
+
+That scatter plot maps `units` to the x-axis and `revenue` to the y-axis. `geom_point()` draws one dot per row.
+
+You can shorten this. The first argument to `ggplot()` is always data. The first argument to `aes()` is always x.
+
+```{r}
+ggplot(sales, aes(units, revenue)) +
+  geom_point()
+```
+
+Same result. Both forms are correct. Use whichever reads better in context.
+
+### Mapped vs Set Aesthetics
+
+When you put an aesthetic inside `aes()`, ggplot2 maps a variable to that visual property. When you set it outside `aes()`, it applies a constant to all points.
+
+```{r}
+# Mapped: color varies by region
+ggplot(sales, aes(units, revenue, color = region)) +
+  geom_point()
+```
+
+```{r}
+# Set: all points get the same color
+ggplot(sales, aes(units, revenue)) +
+  geom_point(color = "steelblue", alpha = 0.3)
+```
+
+Inside `aes()` = mapped to data (creates a legend). Outside `aes()` = fixed constant (no legend).
+
+::: {.callout-warning title="Common Mistake"}
+Putting a constant inside `aes()`:
+
+```{r}
+#| eval: false
+ggplot(sales, aes(units, revenue, color = "blue")) +
+  geom_point()
+```
+
+This does NOT make points blue. It creates a new variable with the value "blue" for every row, maps it to color, and picks a default color from the palette. You get a legend with one entry labeled "blue." Move it outside `aes()` to set a constant color.
+:::
+
+### Common Geoms
+
+**Scatter plot** for two continuous variables:
+
+```{r}
+ggplot(sales, aes(units, revenue)) +
+  geom_point(alpha = 0.2, size = 0.5)
+```
+
+**Bar chart** for counts of a categorical variable:
+
+```{r}
+ggplot(sales, aes(x = product)) +
+  geom_bar()
+```
+
+`geom_bar()` counts rows for you. If you already have counts, use `geom_col()`:
+
+```{r}
+sales |>
+  summarize(total_units = sum(units), .by = region) |>
+  ggplot(aes(region, total_units)) +
+  geom_col()
+```
+
+**Line chart** for time series:
+
+```{r}
+sales |>
+  summarize(daily_rev = sum(revenue), .by = date) |>
+  ggplot(aes(date, daily_rev)) +
+  geom_line()
+```
+
+**Histogram** for distribution of a continuous variable:
+
+```{r}
+ggplot(sales, aes(x = revenue)) +
+  geom_histogram(bins = 30, fill = "steelblue", color = "white")
+```
+
+**Boxplot** for distribution across groups:
+
+```{r}
+ggplot(sales, aes(x = region, y = units)) +
+  geom_boxplot()
+```
+
+### Layering Geoms
+
+You can stack multiple geoms. Each layer draws on top of the previous one.
+
+```{r}
+ggplot(sales, aes(x = region, y = units)) +
+  geom_boxplot(outlier.shape = NA) +
+  geom_jitter(alpha = 0.05, width = 0.2, size = 0.5)
+```
+
+The boxplot draws first, then jittered points on top. `outlier.shape = NA` hides the boxplot outliers since we show all points with jitter.
+
+### Your Turn: Exercise 1
+
+Create a scatter plot of `revenue` (y) vs `units` (x) from the `sales` data. Color points by `product`. Set `alpha = 0.3` and `size = 0.5` for all points.
+
+```{r}
+#| eval: false
+# Your code here
+
+```
+
+::: {.callout-tip collapse="true" title="Hint"}
+Color is mapped to a variable, so it goes inside `aes()`. Alpha and size are constants, so they go inside `geom_point()` but outside `aes()`.
+:::
+
+### Your Turn: Exercise 2
+
+Create a bar chart showing the count of each `product` within each `region`. Use the `fill` aesthetic to color bars by product, and set `position = "dodge"` to place bars side by side.
+
+```{r}
+#| eval: false
+# Your code here
+
+```
+
+### Your Turn: Exercise 3
+
+Using the `diamonds` dataset (built into ggplot2), create a histogram of `price` with 50 bins. Fill with "darkorange" and add a white border.
+
+```{r}
+#| eval: false
+# Your code here
+
+```
+
+### What Happens If...
+
+What do you get from this code?
+
+```{r}
+ggplot(sales, aes(units, revenue)) +
+  geom_point() +
+  geom_smooth()
+```
+
+`geom_smooth()` adds a fitted line (loess by default for small data, GAM for large). You did not need to specify x and y again because it inherited the aesthetics from `ggplot()`.
+
+::: {.callout-tip title="Challenge"}
+Create a density plot (`geom_density()`) of `revenue` with separate curves for each `product`. Make the curves semi-transparent using `alpha = 0.4` and fill by product.
+:::
+
+### Checkpoint: Part 1
+
+You know the three required components: data, `aes()`, and a geom. You know mapped aesthetics go inside `aes()` and constants go outside. You can create scatter plots, bar charts, line charts, histograms, and boxplots.
+
+---
+
+## Part 2: Facets, Scales, and Annotations
+
+### Facets: Small Multiples
+
+`facet_wrap()` creates a separate panel for each level of a variable.
+
+```{r}
+ggplot(sales, aes(units, revenue)) +
+  geom_point(alpha = 0.1, size = 0.5) +
+  facet_wrap(~region)
+```
+
+Control the layout with `ncol` or `nrow`:
+
+```{r}
+ggplot(sales, aes(units, revenue)) +
+  geom_point(alpha = 0.1, size = 0.5) +
+  facet_wrap(~region, ncol = 1)
+```
+
+`facet_grid()` creates a grid from two variables. Rows on the left of `~`, columns on the right:
+
+```{r}
+ggplot(sales, aes(x = units)) +
+  geom_histogram(bins = 30, fill = "steelblue", color = "white") +
+  facet_grid(region ~ product)
+```
+
+By default, all panels share the same axis range. Use `scales = "free"`, `"free_x"`, or `"free_y"` to let them vary:
+
+```{r}
+sales |>
+  summarize(daily_rev = sum(revenue), .by = c(date, region)) |>
+  ggplot(aes(date, daily_rev)) +
+  geom_line() +
+  facet_wrap(~region, scales = "free_y")
+```
+
+### Scales
+
+Scale functions follow the pattern `scale_{aesthetic}_{type}()`. They control how data values map to visual properties.
+
+**Labels and formatting:**
+
+```{r}
+sales |>
+  summarize(total_rev = sum(revenue), .by = region) |>
+  ggplot(aes(region, total_rev)) +
+  geom_col(fill = "steelblue") +
+  scale_y_continuous(labels = scales::label_comma(prefix = "$"))
+```
+
+**Manual colors:**
+
+```{r}
+region_colors <- c(North = "#2196F3", South = "#FF5722", West = "#4CAF50")
+
+ggplot(sales, aes(units, revenue, color = region)) +
+  geom_point(alpha = 0.1, size = 0.5) +
+  scale_color_manual(values = region_colors)
+```
+
+**ColorBrewer palettes:**
+
+```{r}
+ggplot(sales, aes(x = product, fill = product)) +
+  geom_bar() +
+  scale_fill_brewer(palette = "Set2")
+```
+
+**Viridis for continuous color:**
+
+```{r}
+ggplot(sales, aes(units, revenue, color = revenue)) +
+  geom_point(alpha = 0.3, size = 0.5) +
+  scale_color_viridis_c()
+```
+
+### Labels
+
+`labs()` sets all text labels in one call:
+
+```{r}
+sales |>
+  summarize(total_rev = sum(revenue), .by = region) |>
+  ggplot(aes(region, total_rev, fill = region)) +
+  geom_col() +
+  scale_fill_manual(values = region_colors) +
+  labs(
+    title = "Total Revenue by Region",
+    subtitle = "Full year 2024",
+    x = "Region",
+    y = "Total Revenue ($)",
+    fill = "Region",
+    caption = "Source: internal sales data"
+  )
+```
+
+### Coordinate Systems
+
+`coord_flip()` swaps x and y axes. Useful for horizontal bar charts with long labels:
+
+```{r}
+ggplot(sales, aes(x = product)) +
+  geom_bar(fill = "steelblue") +
+  coord_flip()
+```
+
+`coord_cartesian()` zooms in without dropping data. Compare with `scale_y_continuous(limits = ...)` which removes data outside the range:
+
+```{r}
+# Zoom to revenue 100-300 without removing data
+ggplot(sales, aes(units, revenue)) +
+  geom_point(alpha = 0.1) +
+  coord_cartesian(ylim = c(100, 300))
+```
+
+### Annotations
+
+`annotate()` adds fixed text, shapes, or lines that are not tied to data:
+
+```{r}
+sales |>
+  summarize(daily_rev = sum(revenue), .by = date) |>
+  ggplot(aes(date, daily_rev)) +
+  geom_line(color = "steelblue") +
+  annotate("rect",
+    xmin = as.Date("2024-06-01"), xmax = as.Date("2024-08-31"),
+    ymin = -Inf, ymax = Inf,
+    alpha = 0.2, fill = "orange"
+  ) +
+  annotate("text",
+    x = as.Date("2024-07-15"), y = Inf,
+    label = "Summer", vjust = 1.5, fontface = "bold"
+  )
+```
+
+`geom_text()` and `geom_label()` add text tied to data values:
+
+```{r}
+sales |>
+  summarize(total_rev = sum(revenue), .by = region) |>
+  ggplot(aes(region, total_rev)) +
+  geom_col(fill = "steelblue") +
+  geom_text(aes(label = scales::comma(total_rev)), vjust = -0.5)
+```
+
+::: {.callout-note title="Base R vs Tidyverse"}
+Base R annotations use `text()`, `mtext()`, `abline()`, and `rect()` as separate function calls after the plot. In ggplot2, everything is a layer you add with `+`. The ggplot2 approach is more composable and easier to modify.
+:::
+
+### Your Turn: Exercise 4
+
+Take the scatter plot of `units` vs `revenue` and facet it by `product`. Use `facet_wrap()` with `ncol = 3`.
+
+```{r}
+#| eval: false
+# Your code here
+
+```
+
+### Your Turn: Exercise 5
+
+Create a bar chart of total revenue by region. Format the y-axis labels as dollars with commas. Add a title "Revenue by Region" and a subtitle with "2024 Annual Total".
+
+```{r}
+#| eval: false
+# First summarize, then plot
+# Your code here
+
+```
+
+### Your Turn: Exercise 6
+
+Using the `mpg` dataset, create a scatter plot of `displ` (x) vs `hwy` (y). Color by `class`. Use the "Dark2" ColorBrewer palette with `scale_color_brewer()`. Add appropriate axis labels.
+
+```{r}
+#| eval: false
+# Your code here
+
+```
+
+### What Happens If...
+
+```{r}
+ggplot(sales, aes(units, revenue)) +
+  geom_point(alpha = 0.1) +
+  scale_y_continuous(limits = c(200, 400))
+```
+
+Notice the warning: rows with revenue outside 200-400 are removed. This affects any fitted lines or summaries. Use `coord_cartesian(ylim = c(200, 400))` to zoom without data removal.
+
+::: {.callout-tip title="Challenge"}
+Create a line chart of monthly average revenue by region. Use `floor_date()` from lubridate to compute months. Facet by region with free y-scales. Format y-axis as dollars. Add a horizontal reference line at the overall mean using `geom_hline()`.
+:::
+
+### Checkpoint: Part 2
+
+You can create small multiples with facets, control color scales and axis labels, format numbers, zoom with `coord_cartesian()`, and add annotations.
+
+---
+
+## Part 3: Themes, Patchwork, and Export
+
+### Built-in Themes
+
+ggplot2 ships with several themes. The default is `theme_grey()`.
+
+```{r}
+p <- sales |>
+  summarize(total_rev = sum(revenue), .by = region) |>
+  ggplot(aes(region, total_rev, fill = region)) +
+  geom_col() +
+  labs(title = "Revenue by Region")
+
+p + theme_minimal()
+```
+
+```{r}
+p + theme_classic()
+```
+
+```{r}
+p + theme_bw()
+```
+
+```{r}
+p + theme_void()
+```
+
+Pick one as a base and customize from there.
+
+### Customizing with `theme()`
+
+`theme()` controls every non-data element. The building blocks are `element_text()`, `element_line()`, `element_rect()`, and `element_blank()`.
+
+```{r}
+p +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold", size = 16),
+    axis.title = element_text(size = 12),
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    legend.position = "bottom",
+    panel.grid.minor = element_blank()
+  )
+```
+
+Common `theme()` adjustments:
+
+- `legend.position`: "top", "bottom", "left", "right", "none"
+- `panel.grid.major` / `panel.grid.minor`: control grid lines
+- `plot.title.position = "plot"`: left-aligns title to the full plot, not the panel
+- `element_blank()`: removes any element entirely
+
+### Building a Reusable Theme
+
+Wrap your preferred settings in a function:
+
+```{r}
+theme_course <- function(base_size = 12) {
+  theme_minimal(base_size = base_size) +
+    theme(
+      plot.title = element_text(face = "bold", size = base_size * 1.3),
+      plot.title.position = "plot",
+      plot.subtitle = element_text(color = "grey40"),
+      panel.grid.minor = element_blank(),
+      legend.position = "bottom",
+      strip.text = element_text(face = "bold")
+    )
+}
+
+p + theme_course()
+```
+
+Now you can add `theme_course()` to any plot for consistent styling.
+
+### Combining Plots with patchwork
+
+The patchwork package composes multiple ggplot objects. Load it once; then use `+` for side-by-side and `/` for stacked.
+
+```{r}
+library(patchwork)
+
+p1 <- ggplot(sales, aes(x = product)) +
+  geom_bar(fill = "steelblue") +
+  labs(title = "Product Counts") +
+  theme_course()
+
+p2 <- ggplot(sales, aes(x = region, y = revenue)) +
+  geom_boxplot(fill = "steelblue", alpha = 0.5) +
+  labs(title = "Revenue Distribution") +
+  theme_course()
+
+p1 + p2
+```
+
+Stack vertically:
+
+```{r}
+p1 / p2
+```
+
+Complex layouts:
+
+```{r}
+p3 <- sales |>
+  summarize(daily_rev = sum(revenue), .by = date) |>
+  ggplot(aes(date, daily_rev)) +
+  geom_line(color = "steelblue") +
+  labs(title = "Daily Revenue") +
+  theme_course()
+
+(p1 + p2) / p3
+```
+
+Add a shared annotation:
+
+```{r}
+(p1 + p2) / p3 +
+  plot_annotation(
+    title = "Sales Dashboard",
+    subtitle = "2024 Overview",
+    theme = theme_course()
+  )
+```
+
+Tag individual panels:
+
+```{r}
+(p1 + p2) / p3 +
+  plot_annotation(tag_levels = "A")
+```
+
+### Position Adjustments
+
+For bar charts with a fill variable, the default is stacked. Use `position` to change behavior:
+
+```{r}
+# Stacked (default)
+ggplot(sales, aes(x = region, fill = product)) +
+  geom_bar() +
+  theme_course()
+```
+
+```{r}
+# Dodged (side by side)
+ggplot(sales, aes(x = region, fill = product)) +
+  geom_bar(position = "dodge") +
+  theme_course()
+```
+
+```{r}
+# Fill (proportions summing to 1)
+ggplot(sales, aes(x = region, fill = product)) +
+  geom_bar(position = "fill") +
+  scale_y_continuous(labels = scales::label_percent()) +
+  labs(y = "Proportion") +
+  theme_course()
+```
+
+### Saving Plots
+
+`ggsave()` exports the last plot (or a named plot object) to a file.
+
+```{r}
+#| eval: false
+# Save last plot
+ggsave("revenue_dashboard.png", width = 10, height = 6, dpi = 300)
+
+# Save a specific plot object
+ggsave("product_counts.pdf", plot = p1, width = 8, height = 5)
+```
+
+Common file types: png (raster, good for web), pdf (vector, good for print), svg (vector, good for web editing).
+
+The `width` and `height` arguments are in inches by default. Changing dimensions changes how text and elements scale relative to the plot area. If text looks too big, increase the dimensions. If it looks too small, decrease them.
+
+::: {.callout-warning title="Common Mistake"}
+Relying on the Positron plot pane size for your final figure. The pane is a preview. Your saved figure can have different proportions. Always use `ggsave()` with explicit dimensions and check the output file.
+:::
+
+### Your Turn: Exercise 7
+
+Take any plot from this workbook and apply `theme_classic()`. Then customize it: make the title bold and size 14, remove the legend, and remove minor grid lines.
+
+```{r}
+#| eval: false
+# Your code here
+
+```
+
+### Your Turn: Exercise 8
+
+Write a custom theme function called `theme_clean()` that:
+
+- Starts from `theme_minimal()`
+- Makes plot titles bold
+- Moves the legend to the top
+- Removes all grid lines (both major and minor)
+- Sets strip text (facet labels) to bold italic
+
+```{r}
+#| eval: false
+theme_clean <- function(base_size = 12) {
+  # Your code here
+}
+```
+
+### Your Turn: Exercise 9
+
+Create three plots from the `sales` data:
+
+1. A bar chart of product counts
+2. A boxplot of revenue by region
+3. A line chart of daily total units
+
+Combine them using patchwork: put the bar chart and boxplot side by side on top, and the line chart spanning the full width on the bottom. Add a shared title.
+
+```{r}
+#| eval: false
+# Your code here
+
+```
+
+### Your Turn: Exercise 10
+
+Using the `mpg` dataset, create a dodged bar chart of `class` filled by `drv` (drive type). Add percentage labels on the y-axis using `position = "fill"` and `scale_y_continuous(labels = scales::label_percent())`. Apply a clean theme.
+
+```{r}
+#| eval: false
+# Your code here
+
+```
+
+::: {.callout-tip title="Challenge"}
+Build a mini-dashboard of four plots using the `diamonds` dataset:
+
+1. Histogram of price
+2. Scatter plot of carat vs price, colored by cut
+3. Bar chart of cut counts
+4. Boxplot of price by color
+
+Arrange them in a 2x2 grid with patchwork. Apply a consistent theme. Add panel tags (A, B, C, D) and a shared title.
+:::
+
+### Checkpoint: Part 3
+
+You can apply and customize themes, build reusable theme functions, combine plots with patchwork, adjust bar positions (stack, dodge, fill), and export figures with `ggsave()`.
+
+---
+
+## Session Synthesis
+
+### Connect the Dots
+
+Build a complete, polished visualization from start to finish. Use the `sales` data to create this dashboard:
+
+1. Compute monthly total revenue by region (use `floor_date()` from lubridate)
+2. Create a line chart with one line per region, colored by region
+3. Add a faceted bar chart showing product mix by region (use `position = "fill"`)
+4. Combine both plots vertically with patchwork
+5. Apply a custom theme, add meaningful labels, format axes, and add a shared title
+
+```{r}
+#| eval: false
+library(lubridate)
+
+# Step 1: monthly summary
+monthly <- sales |>
+  mutate(month = floor_date(date, "month")) |>
+  summarize(total_rev = sum(revenue), .by = c(month, region))
+
+# Step 2: line chart
+p_line <- # Your code here
+
+# Step 3: product mix bar chart
+p_bars <- # Your code here
+
+# Step 4-5: combine and polish
+# Your code here
+```
+
+### Key Takeaways
+
+- Every ggplot needs data, `aes()`, and at least one geom
+- Inside `aes()` = mapped to data. Outside = fixed constant.
+- Facets create small multiples for comparing groups
+- Scale functions control how data values translate to visual properties
+- `theme()` controls all non-data visual elements
+- patchwork composes multiple plots with `+`, `/`, and `plot_annotation()`
+- Always use `ggsave()` with explicit dimensions for final output
+
+### Prepare for Next Session
+
+Session 9 covers advanced tidyverse: tidy evaluation with `{{ }}` for writing functions that wrap dplyr/ggplot2, functional programming patterns, and working with APIs and JSON data. Review how you write functions (Session 2) and how dplyr uses unquoted column names (Session 5).

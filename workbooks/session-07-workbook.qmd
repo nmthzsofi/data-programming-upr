@@ -1,0 +1,673 @@
+---
+title: "Session 7: Specialized Data Types"
+subtitle: "R Programming Workbook"
+author: "R Programming Course"
+date: today
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    toc-location: left
+    code-fold: show
+    code-tools: true
+    code-overflow: wrap
+    theme: cosmo
+    self-contained: true
+execute:
+  echo: true
+  warning: false
+  message: false
+---
+
+::: {.callout-note title="Learning Objectives"}
+After completing this session, you will be able to:
+
+1. Create and manipulate factors using forcats functions
+2. Reorder factor levels for correct plotting and display
+3. Parse dates from strings using lubridate
+4. Extract date components and perform date arithmetic
+5. Use map() and its typed variants to iterate over lists
+6. Handle errors in iteration with safely() and possibly()
+7. Work with nested data frames using nest() and map()
+8. Combine factor, date, and list operations in data pipelines
+:::
+
+```{r}
+#| label: setup
+library(tidyverse)
+
+set.seed(42)
+sales <- tibble(
+  date = rep(seq(as.Date("2024-01-01"), as.Date("2024-12-31"), by = "day"), 3),
+  region = rep(c("North", "South", "West"), each = 366),
+  product = sample(c("Widget", "Gadget", "Doohickey"), 366 * 3, replace = TRUE),
+  units = rpois(366 * 3, lambda = 50),
+  revenue = round(runif(366 * 3, 10, 500), 2),
+  returned = rbinom(366 * 3, 1, 0.05)
+)
+```
+
+## Part 1: Factors with forcats
+
+### Creating Factors
+
+```{r}
+# Character vector — alphabetical order
+sizes <- c("Large", "Small", "Medium", "Large", "Small")
+sort(sizes)
+```
+
+```{r}
+# Factor with meaningful order
+sizes_f <- factor(sizes, levels = c("Small", "Medium", "Large"))
+sort(sizes_f)
+```
+
+### Key forcats Functions
+
+```{r}
+library(forcats)
+
+# fct_infreq: order by frequency
+sales |>
+  mutate(product = fct_infreq(product)) |>
+  count(product)
+```
+
+```{r}
+# fct_reorder: order by another variable
+sales |>
+  summarize(avg_rev = mean(revenue), .by = product) |>
+  mutate(product = fct_reorder(product, avg_rev))
+```
+
+```{r}
+# fct_lump_n: keep top n, collapse rest to "Other"
+tibble(letter = sample(letters[1:10], 200, replace = TRUE,
+                       prob = c(.2, .15, .12, .1, .1, .08, .08, .07, .05, .05))) |>
+  mutate(letter = fct_lump_n(letter, n = 5)) |>
+  count(letter, sort = TRUE)
+```
+
+```{r}
+# fct_recode: rename levels
+sales |>
+  mutate(region = fct_recode(region,
+    "Northern" = "North",
+    "Southern" = "South",
+    "Western" = "West"
+  )) |>
+  count(region)
+```
+
+::: {.callout-note title="Base R vs Tidyverse"}
+**Base R:** `factor(x, levels = ...)` and `levels(x) <- ...` for direct manipulation.
+
+**forcats:** Consistent `fct_*` functions that always return a factor and never silently drop levels.
+:::
+
+### Your Turn: Factors
+
+**Exercise 1.1:** Create a factor from the vector `c("Freshman", "Junior", "Senior", "Sophomore", "Junior")` with levels in the correct academic order.
+
+```{r}
+levels <- factor(c("Freshman", "Junior", "Senior", "Sophomore", "Junior"),levels=c("Freshman", "Sophomore", "Junior", "Senior"))
+sort(levels)
+
+```
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+year <- factor(
+  c("Freshman", "Junior", "Senior", "Sophomore", "Junior"),
+  levels = c("Freshman", "Sophomore", "Junior", "Senior")
+)
+sort(year)
+```
+
+**Exercise 1.2:** Using the `sales` dataset, reorder `region` by total revenue (highest first) and show the result.
+
+```{r}
+sales |> mutate(region = fct_reorder(region,revenue, .fun=sum, .desc=TRUE)) |> summarise(total_rev = sum(revenue),.by=region) 
+```
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+sales |>
+  mutate(region = fct_reorder(region, revenue, .fun = sum, .desc = TRUE)) |>
+  summarize(total = sum(revenue), .by = region)
+```
+
+**Exercise 1.3:** Collapse the product column so that "Gadget" and "Doohickey" become "Non-Widget" and count the results.
+
+```{r}
+sales |> mutate(product = fct_collapse(product,
+Widget = "Widget", 
+`Non-Widget` = c("Gadget","Doohickey")
+)) |> count(product)
+```
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+sales |>
+  mutate(product = fct_collapse(product,
+    Widget = "Widget",
+    `Non-Widget` = c("Gadget", "Doohickey")
+  )) |>
+  count(product)
+```
+
+::: {.callout-warning title="Common Mistake"}
+Assigning a value that isn't in the factor levels:
+
+```{r}
+f <- factor(c("A", "B", "C"), levels = c("A", "B", "C"))
+f[1] <- "D"
+f  # First element is now NA
+```
+
+Fix: Add the new level first with `fct_expand()`:
+
+```{r}
+f <- factor(c("A", "B", "C"), levels = c("A", "B", "C"))
+f <- fct_expand(f, "D")
+f[1] <- "D"
+f
+```
+:::
+
+::: {.callout-tip title="Challenge"}
+From `sales`, create a factor `quarter` from the date column, ordered Q1 through Q4. Then compute average revenue per quarter per region, with regions ordered by their Q1 revenue.
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+q1_order <- sales |>
+  mutate(quarter = paste0("Q", quarter(date))) |>
+  filter(quarter == "Q1") |>
+  summarize(q1_rev = mean(revenue), .by = region) |>
+  arrange(desc(q1_rev)) |>
+  pull(region)
+
+sales |>
+  mutate(
+    quarter = factor(paste0("Q", quarter(date)), levels = paste0("Q", 1:4)),
+    region = factor(region, levels = q1_order)
+  ) |>
+  summarize(avg_revenue = round(mean(revenue), 2), .by = c(region, quarter)) |>
+  arrange(region, quarter)
+```
+:::
+
+## Part 2: Dates with lubridate
+
+### Parsing Dates
+
+```{r}
+library(lubridate)
+
+# Function name matches input order
+ymd("2024-03-15")
+mdy("March 15, 2024")
+dmy("15/03/2024")
+ymd_hms("2024-03-15 14:30:00")
+```
+
+### Extracting Components
+
+```{r}
+d <- ymd("2024-07-15")
+
+year(d)
+month(d)
+month(d, label = TRUE)
+day(d)
+wday(d, label = TRUE)
+quarter(d)
+yday(d)
+```
+
+### Date Arithmetic
+
+```{r}
+d <- ymd("2024-03-15")
+
+d + days(30)
+d + months(2)
+d - years(1)
+```
+
+```{r}
+# Difference between dates
+as.numeric(ymd("2024-12-31") - ymd("2024-01-01"))
+```
+
+### Rounding Dates
+
+```{r}
+dates <- ymd(c("2024-03-15", "2024-03-28", "2024-04-02"))
+
+floor_date(dates, "month")    # start of month
+ceiling_date(dates, "month")  # start of next month
+floor_date(dates, "week")     # start of week
+```
+
+### Your Turn: Dates
+
+**Exercise 2.1:** Parse these date strings into proper Date objects:
+
+```{r}
+date_strings <- c("01/15/2024", "02/28/2024", "12/25/2023")
+```
+
+```{r}
+
+mdy(date_strings)
+```
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+mdy(date_strings)
+```
+
+**Exercise 2.2:** From the `sales` dataset, add columns for month name, day of week, and week number. Then find which day of the week has the highest average units sold.
+
+```{r}
+sales |> mutate(
+  month_name = month(date,label=TRUE),
+  day_of_week = wday(date, label=TRUE),
+  week_number = week(date)
+)|> summarise(average_unit_sold = mean(revenue), .by = day_of_week) |> arrange(desc(average_unit_sold))
+```
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+sales |>
+  mutate(
+    month_name = month(date, label = TRUE),
+    weekday = wday(date, label = TRUE),
+    week_num = week(date)
+  ) |>
+  summarize(avg_units = mean(units), .by = weekday) |>
+  arrange(desc(avg_units))
+```
+
+**Exercise 2.3:** Filter `sales` to the last 90 days of 2024 (October 2 through December 31).
+
+```{r}
+sales |> filter(date >= ymd("2024-10-02"))|> filter(date <= ymd("2024-12-31")) |>summarize(
+    min_date = min(date),
+    max_date = max(date),
+    n_rows = n()
+  )
+```
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+cutoff <- ymd("2024-12-31") - days(90)
+cutoff
+
+sales |>
+  filter(date >= cutoff) |>
+  summarize(
+    min_date = min(date),
+    max_date = max(date),
+    n_rows = n()
+  )
+```
+
+**Exercise 2.4:** Group `sales` by week (using `floor_date()`) and compute weekly revenue totals per region.
+
+```{r}
+sales |> mutate(week = floor_date(date,"week")) |> summarise(total_rev = sum(revenue),.by=c(week,region))
+```
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+sales |>
+  mutate(week = floor_date(date, "week")) |>
+  summarize(weekly_revenue = sum(revenue), .by = c(region, week)) |>
+  arrange(region, week) |>
+  head(10)
+```
+
+::: {.callout-warning title="Common Mistake"}
+Month arithmetic near month boundaries:
+
+```{r}
+# January 31 + 1 month = ?
+ymd("2024-01-31") + months(1)
+```
+
+This returns February 29 (2024 is a leap year). In non-leap years, it returns NA:
+
+```{r}
+ymd("2023-01-31") + months(1)
+```
+
+Fix: Use `%m+%` for rollback behavior:
+
+```{r}
+ymd("2023-01-31") %m+% months(1)  # rolls to Feb 28
+```
+:::
+
+::: {.callout-tip title="Challenge"}
+Compute the number of business days (Monday through Friday) in each month of 2024 for each region's sales data. Then find which month-region combination had the highest revenue per business day.
+
+```{r}
+business_days = c("Mon","Tue","Wed","Thu","Fri")
+sales |> 
+  mutate(
+    week_day = wday(date,label=TRUE)%in% business_days, 
+    month = month(date,label = TRUE)) |> 
+  filter (week_day) |> 
+  summarise(total_rev = sum(revenue), .by=c(region,month))
+ ```
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+sales |>
+  mutate(
+    month = floor_date(date, "month"),
+    is_weekday = !wday(date) %in% c(1, 7)
+  ) |>
+  filter(is_weekday) |>
+  summarize(
+    total_revenue = sum(revenue),
+    n_days = n_distinct(date),
+    rev_per_day = total_revenue / n_days,
+    .by = c(region, month)
+  ) |>
+  slice_max(rev_per_day, n = 5)
+```
+:::
+
+## Part 3: Functional Programming with purrr
+
+### map() Basics
+
+```{r}
+library(purrr)
+
+# map always returns a list
+list(1, 4, 9, 16) |> map(sqrt)
+```
+
+```{r}
+# Typed variants return vectors
+list(1, 4, 9, 16) |> map_dbl(sqrt)
+list("hello", "world") |> map_int(nchar)
+c(1, -2, 3) |> map_lgl(\(x) x > 0)
+```
+
+### map() with Lambda
+
+```{r}
+# Custom operations
+1:5 |> map_dbl(\(x) x^2 + 1)
+
+# Multiple operations per element
+list(c(1, 2, 3), c(10, 20), c(100)) |>
+  map(\(x) tibble(mean = mean(x), n = length(x)))
+```
+
+### map2() and pmap()
+
+```{r}
+# Two parallel inputs
+map2_chr(
+  c("Alice", "Bob", "Carlos"),
+  c(90, 85, 92),
+  \(name, score) str_glue("{name}: {score}")
+)
+```
+
+```{r}
+# Multiple inputs from a data frame
+params <- tibble(
+  n = c(100, 200, 50),
+  mean = c(0, 10, 5),
+  sd = c(1, 2, 0.5)
+)
+
+pmap_dbl(params, \(n, mean, sd) mean(rnorm(n, mean, sd)))
+```
+
+### Error Handling
+
+```{r}
+# possibly: return default on error
+safe_parse <- possibly(as.numeric, otherwise = NA_real_)
+c("1", "two", "3", "four") |> map_dbl(safe_parse)
+```
+
+```{r}
+# safely: capture both result and error
+safe_log <- safely(log)
+results <- list(10, -1, "oops") |> map(safe_log)
+results |> map("result")
+results |> map("error")
+```
+
+### Nested Data and map()
+
+```{r}
+# Nest by region
+nested <- sales |> nest(.by = region)
+nested
+```
+
+```{r}
+# Compute per group using map
+nested |>
+  mutate(
+    n_rows = map_int(data, nrow),
+    avg_revenue = map_dbl(data, \(df) mean(df$revenue)),
+    top_product = map_chr(data, \(df) {
+      df |> count(product, sort = TRUE) |> slice(1) |> pull(product)
+    })
+  ) |>
+  select(-data)
+```
+
+::: {.callout-note title="Base R vs Tidyverse"}
+**Base R:** `lapply()` returns list, `sapply()` guesses output type (dangerous), `vapply()` requires type spec.
+
+**purrr:** `map()` returns list, `map_dbl()/map_chr()/map_int()/map_lgl()` enforce return types. Safer and more consistent.
+:::
+
+### Your Turn: purrr
+
+**Exercise 3.1:** Use `map_dbl()` to compute the standard deviation of each numeric column in `sales`.
+
+```{r}
+sales |> select(where(is.numeric)) |> map_dbl(sd)
+```
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+sales |>
+  select(where(is.numeric)) |>
+  map_dbl(sd)
+```
+
+**Exercise 3.2:** Use `map2_dbl()` to compute weighted scores. Students have scores and weights:
+
+
+```{r}
+scores <- list(c(85, 90, 78), c(92, 88, 95), c(70, 75, 80))
+weights <- list(c(0.3, 0.4, 0.3), c(0.2, 0.3, 0.5), c(0.5, 0.3, 0.2))
+```
+
+```{r}
+map2_dbl(scores, weights, weighted.mean)
+```
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+map2_dbl(scores, weights, weighted.mean)
+```
+
+**Exercise 3.3:** Nest `sales` by product, fit a linear model `revenue ~ units` for each, and extract the slope (coefficient for units).
+
+```{r}
+sales |> nest(.by= product) |> mutate(
+  model = map(data, \(x) lm(revenue~units,data = x)),
+  slope = map_dbl(model, \(m) coef(m)[["units"]])
+)
+```
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+sales |>
+  nest(.by = product) |>
+  mutate(
+    model = map(data, \(df) lm(revenue ~ units, data = df)),
+    slope = map_dbl(model, \(m) coef(m)[["units"]])
+  ) |>
+  select(product, slope)
+```
+
+**Exercise 3.4:** Use `possibly()` to safely parse these mixed values to numeric, returning NA for failures:
+
+```{r}
+messy_values <- c("42", "3.14", "N/A", "100", "unknown", "7.5")
+```
+
+```{r}
+messy_values |> map_dbl(possibly(as.numeric, otherwise=NA))
+```
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+safe_numeric <- possibly(as.numeric, otherwise = NA_real_)
+messy_values |> map_dbl(safe_numeric)
+```
+
+**Exercise 3.5:** Use `walk()` to print a summary sentence for each region's total revenue:
+
+```{r}
+sales |> summarise(total_rev = sum(revenue),.by=region) |> pmap(list)|> walk(\(x) cat(str_glue("{x$region} : {x$total_rev}"),"\n"))
+```
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+sales |>
+  summarize(total = sum(revenue), .by = region) |>
+  pmap(list) |>
+  walk(\(x) cat(str_glue("{x$region}: ${round(x$total, 0)}"), "\n"))
+```
+
+::: {.callout-warning title="Common Mistake"}
+Using `map_dbl()` when the function returns something other than a single double:
+
+```{r}
+#| error: true
+# This returns a vector, not a scalar
+list(c(1, 2), c(3, 4)) |> map_dbl(range)
+```
+
+Fix: Use `map()` for complex return values:
+
+```{r}
+list(c(1, 2), c(3, 4)) |> map(range)
+```
+:::
+
+**Think About It:** When is `nest() + map()` better than `.by` in `summarize()`? What kinds of operations require nesting that grouped summarize cannot handle?
+
+::: {.callout-tip title="Challenge"}
+Build a nested analysis: for each region-product combination, compute a rolling 7-day average of revenue. Use nest, map, and a custom function.
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+rolling_avg <- function(df, window = 7) {
+  df |>
+    arrange(date) |>
+    mutate(
+      rolling_7d = map_dbl(
+        seq_len(n()),
+        \(i) mean(revenue[max(1, i - window + 1):i])
+      )
+    )
+}
+
+sales |>
+  nest(.by = c(region, product)) |>
+  mutate(data = map(data, rolling_avg)) |>
+  unnest(data) |>
+  select(date, region, product, revenue, rolling_7d) |>
+  head(10)
+```
+:::
+
+## Session Synthesis
+
+### Connect the Dots
+
+Build a comprehensive time-based analysis combining all three skills:
+
+1. Parse dates and extract month, quarter, and day of week from `sales`
+2. Create ordered factor for day of week (Monday first)
+3. Nest by region and compute monthly summaries using map
+4. Unnest and identify the best-performing month per region
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+sales |>
+  mutate(
+    month = floor_date(date, "month"),
+    weekday = fct_relevel(
+      wday(date, label = TRUE),
+      "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"
+    ),
+    quarter = paste0("Q", quarter(date))
+  ) |>
+  nest(.by = region) |>
+  mutate(
+    monthly = map(data, \(df) {
+      df |>
+        summarize(
+          total_revenue = sum(revenue),
+          avg_units = mean(units),
+          n_returns = sum(returned),
+          .by = month
+        )
+    })
+  ) |>
+  select(-data) |>
+  unnest(monthly) |>
+  mutate(month_label = month(month, label = TRUE)) |>
+  slice_max(total_revenue, n = 1, by = region) |>
+  select(region, month_label, total_revenue, avg_units, n_returns)
+```
+
+### Key Takeaways
+
+1. forcats gives you control over factor ordering. Use `fct_reorder()` for data-driven ordering and `fct_lump_n()` to simplify many-level factors.
+2. lubridate parses dates with `ymd()`/`mdy()`/`dmy()` and extracts parts with `year()`/`month()`/`wday()`. Use `floor_date()` for grouping by time periods.
+3. purrr's `map()` family provides type-safe iteration. Use `nest() + map()` for per-group operations that go beyond simple summarize.
+4. `safely()` and `possibly()` let you handle errors gracefully during iteration.
+
+### Prepare for Next Session
+
+**Session 8: Data Visualization with ggplot2**
+
+You will learn:
+
+- Grammar of graphics concepts
+- Building plots layer by layer
+- Facets, scales, themes, and customization
+
+The factor ordering skills from today directly improve your ggplot2 output. Run `library(ggplot2)` to confirm it works.
