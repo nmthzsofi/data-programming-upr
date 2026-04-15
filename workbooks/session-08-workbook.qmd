@@ -58,6 +58,14 @@ Every ggplot2 plot needs three things: data, aesthetic mappings, and at least on
 ```{r}
 ggplot(data = sales, mapping = aes(x = units, y = revenue)) +
   geom_point()
+
+
+ggplot(sales)+
+  aes(x=units, y= revenue)+
+  geom_point() +
+  geom_hline(yintercept=300, color="red", linetype="dashed")+
+  geom_text(aes(x=30,y=320),label="Revenue target", color="red")+
+  theme_minimal()
 ```
 
 That scatter plot maps `units` to the x-axis and `revenue` to the y-axis. `geom_point()` draws one dot per row.
@@ -94,8 +102,8 @@ Putting a constant inside `aes()`:
 
 ```{r}
 #| eval: false
-ggplot(sales, aes(units, revenue, color = "blue")) +
-  geom_point()
+ggplot(sales, aes(units, revenue)) +
+  geom_point(aes(color=region), size=2, shape=5) #color needs to be outside the first aes to be applied
 ```
 
 This does NOT make points blue. It creates a new variable with the value "blue" for every row, maps it to color, and picks a default color from the palette. You get a legend with one entry labeled "blue." Move it outside `aes()` to set a constant color.
@@ -114,7 +122,7 @@ ggplot(sales, aes(units, revenue)) +
 
 ```{r}
 ggplot(sales, aes(x = product)) +
-  geom_bar()
+  geom_bar() #by default this counts rows! not sum 
 ```
 
 `geom_bar()` counts rows for you. If you already have counts, use `geom_col()`:
@@ -123,7 +131,7 @@ ggplot(sales, aes(x = product)) +
 sales |>
   summarize(total_units = sum(units), .by = region) |>
   ggplot(aes(region, total_units)) +
-  geom_col()
+  geom_col(stat="identity", color="blue", fill="steelblue")
 ```
 
 **Line chart** for time series:
@@ -146,7 +154,10 @@ ggplot(sales, aes(x = revenue)) +
 
 ```{r}
 ggplot(sales, aes(x = region, y = units)) +
-  geom_boxplot()
+  geom_boxplot()+
+   geom_jitter(alpha=0.2, width=0.1, size=0.75)+
+   geom_violin(alpha = 0.5, fill="red", color=NA)
+ 
 ```
 
 ### Layering Geoms
@@ -168,6 +179,8 @@ Create a scatter plot of `revenue` (y) vs `units` (x) from the `sales` data. Col
 ```{r}
 #| eval: false
 # Your code here
+ggplot(sales, aes(units,revenue))+
+  geom_point(aes(color=product), alpha=0.3, size=0.5)
 
 ```
 
@@ -182,6 +195,8 @@ Create a bar chart showing the count of each `product` within each `region`. Use
 ```{r}
 #| eval: false
 # Your code here
+ggplot(sales, aes(region))+
+  geom_bar(aes(fill=product), position="dodge")
 
 ```
 
@@ -192,6 +207,9 @@ Using the `diamonds` dataset (built into ggplot2), create a histogram of `price`
 ```{r}
 #| eval: false
 # Your code here
+ggplot(diamonds, aes(price))+
+  geom_histogram(fill = "darkorange", color="white", bins=50)
+
 
 ```
 

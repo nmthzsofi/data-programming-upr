@@ -1,0 +1,731 @@
+---
+title: "Session 9: Advanced Tidyverse"
+subtitle: "R Programming Workbook"
+author: "R Programming Course"
+date: today
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    toc-location: left
+    code-fold: show
+    code-tools: true
+    code-overflow: wrap
+    theme: cosmo
+    self-contained: true
+execute:
+  echo: true
+  warning: false
+  message: false
+---
+
+::: {.callout-note title="Learning Objectives"}
+By the end of this session you will be able to:
+
+1. Use the embrace operator `{{ }}` to write functions that accept column names
+2. Apply the walrus operator `:=` for dynamic column naming
+3. Use `.data` and `.env` pronouns for string-based column access
+4. Create function factories that return specialized functions
+5. Apply `reduce()` and `accumulate()` for sequential operations
+6. Parse JSON data with jsonlite
+7. Build and perform HTTP requests with httr2
+8. Handle nested API responses with purrr
+9. Implement error handling and rate limiting for API workflows
+:::
+
+```{r}
+#| label: setup
+library(dplyr)
+library(purrr)
+library(jsonlite)
+library(tidyr)
+library(ggplot2)
+
+set.seed(42)
+sales <- tibble(
+  date = rep(seq(as.Date("2024-01-01"), as.Date("2024-12-31"), by = "day"), 3),
+  region = rep(c("North", "South", "West"), each = 366),
+  product = sample(c("Widget", "Gadget", "Doohickey"), 366 * 3, replace = TRUE),
+  units = rpois(366 * 3, lambda = 50),
+  revenue = round(runif(366 * 3, 10, 500), 2),
+  returned = rbinom(366 * 3, 1, 0.05)
+)
+```
+
+## Part 1: Tidy Evaluation
+
+### The Problem: Column Names in Functions
+
+When you write a function that calls dplyr verbs, you cannot pass column names like regular variables.
+
+```{r}
+# This does NOT work as expected
+bad_mean <- function(data, col) {
+  data |> summarize(result = mean(col))
+}
+
+# Try it -- you get an error or wrong result
+# bad_mean(sales, revenue)
+```
+
+dplyr uses **data masking**: it treats bare names (like `revenue`) as columns, not as R variables. Inside your function, `col` is a symbol, not the column itself.
+
+### The Embrace Operator {{ }}
+
+Wrap function arguments in `{{ }}` to pass them through to dplyr:
+
+```{r}
+good_mean <- function(data, col) {
+  data |> summarize(result = mean({{ col }}))
+}
+
+good_mean(sales, revenue)
+good_mean(sales, units)
+```
+
+`{{ }}` tells dplyr: "evaluate this argument the way the caller intended."
+
+### Embrace in Multiple Contexts
+
+```{r}
+# Works in filter
+filter_above <- function(data, col, threshold) {
+  data |> filter({{ col }} > threshold)
+}
+
+sales |> filter_above(revenue, 400) |> head(5)
+```
+
+```{r}
+# Works in mutate
+add_scaled <- function(data, col) {
+  data |> mutate(scaled = ({{ col }} - mean({{ col }})) / sd({{ col }}))
+}
+
+sales |> add_scaled(revenue) |> select(revenue, scaled) |> head(5)
+```
+
+```{r}
+# Works in .by
+grouped_summary <- function(data, group_col, value_col) {
+  data |>
+    summarize(
+      mean_val = mean({{ value_col }}),
+      n = n(),
+      .by = {{ group_col }}
+    )
+}
+
+sales |> grouped_summary(region, revenue)
+```
+
+### Dynamic Column Names with :=
+
+Use the walrus operator `:=` with glue syntax for dynamic output names:
+
+```{r}
+named_summary <- function(data, group_col, value_col) {
+  data |>
+    summarize(
+      "mean_{{ value_col }}" := mean({{ value_col }}),
+      "sd_{{ value_col }}" := sd({{ value_col }}),
+      .by = {{ group_col }}
+    )
+}
+
+sales |> named_summary(region, revenue)
+sales |> named_summary(product, units)
+```
+
+### .data and .env Pronouns
+
+When column names are strings (not bare symbols), use `.data[[ ]]`:
+
+```{r}
+col_name <- "revenue"
+sales |> summarize(avg = mean(.data[[col_name]]), .by = region)
+```
+
+Use `.env` to refer to variables from the surrounding environment inside dplyr:
+
+```{r}
+threshold_val <- 300
+sales |>
+  filter(.data[["revenue"]] > .env[["threshold_val"]]) |>
+  nrow()
+```
+
+::: {.callout-note title="Base R vs Tidyverse"}
+In base R, you access columns with `df[[col_name]]` where `col_name` is a string. No special syntax needed because base R does not use data masking. Tidy evaluation is the price you pay for the convenience of typing `revenue` instead of `df[["revenue"]]` everywhere.
+:::
+
+### Your Turn: Exercise 1
+
+Write a function `count_above` that takes a data frame, a column, and a threshold, and returns the number of rows where the column exceeds the threshold.
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+count_above <- function(data, col, threshold) {
+  data |>
+    filter({{ col }} > threshold) |>
+    nrow()
+}
+
+count_above(sales, revenue, 400)
+count_above(sales, units, 60)
+```
+
+### Your Turn: Exercise 2
+
+Write a function `top_n_by_group` that takes a data frame, a grouping column, a value column, and n, then returns the top n rows by value within each group.
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+top_n_by_group <- function(data, group_col, value_col, n = 3) {
+  data |>
+    slice_max({{ value_col }}, n = n, by = {{ group_col }})
+}
+
+sales |> top_n_by_group(region, revenue, n = 2) |> head(6)
+```
+
+### Your Turn: Exercise 3
+
+Write a function `quick_plot` that takes a data frame, x column, y column, and color column, then produces a scatter plot.
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+quick_plot <- function(data, x_col, y_col, color_col) {
+  ggplot(data, aes(x = {{ x_col }}, y = {{ y_col }}, color = {{ color_col }})) +
+    geom_point(alpha = 0.3) +
+    theme_minimal()
+}
+
+sales |> quick_plot(units, revenue, region)
+```
+
+::: {.callout-warning title="Common Mistake"}
+Forgetting `{{ }}` inside `aes()`:
+
+```r
+# WRONG -- plots nothing useful
+quick_plot <- function(data, x_col, y_col) {
+  ggplot(data, aes(x = x_col, y = y_col)) + geom_point()
+}
+```
+
+ggplot2 also uses data masking. Always embrace column arguments inside `aes()`.
+:::
+
+### Your Turn: Exercise 4
+
+Write a function `summarize_string_col` that accepts a string column name (not a bare name) and computes the mean of that column.
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+summarize_string_col <- function(data, col_string) {
+  data |>
+    summarize(mean_val = mean(.data[[col_string]], na.rm = TRUE))
+}
+
+summarize_string_col(sales, "revenue")
+summarize_string_col(sales, "units")
+```
+
+::: {.callout-tip title="Challenge"}
+Write a function `multi_summarize` that accepts a data frame, a grouping column, and a character vector of column names. It should return the mean of each named column grouped by the grouping column. (Hint: use `across(all_of(...))`)
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+multi_summarize <- function(data, group_col, col_names) {
+  data |>
+    summarize(
+      across(all_of(col_names), \(x) mean(x, na.rm = TRUE)),
+      .by = {{ group_col }}
+    )
+}
+
+multi_summarize(sales, region, c("units", "revenue"))
+```
+:::
+
+## Part 2: Functional Programming Patterns
+
+### Function Factories
+
+A function that returns a function:
+
+```{r}
+multiplier <- function(factor) {
+  \(x) x * factor
+}
+
+double <- multiplier(2)
+triple <- multiplier(3)
+
+double(10)
+triple(10)
+```
+
+The returned function "remembers" the value of `factor` from when it was created. This is a closure.
+
+### Practical Factory: Threshold Checker
+
+```{r}
+make_checker <- function(lower, upper) {
+  \(x) x >= lower & x <= upper
+}
+
+valid_revenue <- make_checker(10, 500)
+valid_units <- make_checker(0, 100)
+
+sales |>
+  filter(valid_revenue(revenue), valid_units(units)) |>
+  nrow()
+```
+
+### Function Operators
+
+Functions that take a function and return a modified version:
+
+```{r}
+with_logging <- function(fn) {
+  \(...) {
+    cat("Input:", ..., "\n")
+    result <- fn(...)
+    cat("Output:", result, "\n")
+    result
+  }
+}
+
+logged_sum <- with_logging(sum)
+logged_sum(1, 2, 3)
+```
+
+### safely() and possibly()
+
+```{r}
+safe_divide <- safely(\(x, y) x / y)
+
+safe_divide(10, 2)
+safe_divide(10, 0)
+```
+
+```{r}
+maybe_divide <- possibly(\(x, y) x / y, otherwise = NA_real_)
+
+map_dbl(c(2, 0, 5, NA), \(d) maybe_divide(10, d))
+```
+
+### reduce() and accumulate()
+
+`reduce()` applies a 2-argument function across a list from left to right:
+
+```{r}
+reduce(1:5, `+`)     # ((((1+2)+3)+4)+5) = 15
+reduce(1:5, `*`)     # 1*2*3*4*5 = 120
+```
+
+```{r}
+# Merge multiple data frames
+df1 <- tibble(id = 1:3, a = c("x", "y", "z"))
+df2 <- tibble(id = 2:4, b = c(10, 20, 30))
+df3 <- tibble(id = 1:4, c = c(TRUE, FALSE, TRUE, FALSE))
+
+reduce(list(df1, df2, df3), inner_join, by = "id")
+```
+
+`accumulate()` returns all intermediate results:
+
+```{r}
+# Running total
+transactions <- c(100, -30, 50, -10, 80)
+accumulate(transactions, `+`)
+```
+
+### Your Turn: Exercise 5
+
+Create a function factory `make_normalizer` that takes a vector and returns a function that normalizes new values to the 0-1 range using the original vector's min and max.
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+make_normalizer <- function(reference) {
+  rng <- range(reference, na.rm = TRUE)
+  \(x) (x - rng[1]) / (rng[2] - rng[1])
+}
+
+norm_revenue <- make_normalizer(sales$revenue)
+norm_revenue(c(100, 250, 500))
+```
+
+### Your Turn: Exercise 6
+
+Use `reduce()` to find the intersection of these three vectors:
+
+```{r}
+v1 <- c(1, 2, 3, 4, 5)
+v2 <- c(2, 4, 6, 8)
+v3 <- c(3, 4, 5, 6)
+```
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+reduce(list(v1, v2, v3), intersect)
+```
+
+### Your Turn: Exercise 7
+
+Use `accumulate()` to compute a running product of `c(2, 3, 4, 5)`.
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+accumulate(c(2, 3, 4, 5), `*`)
+```
+
+### Your Turn: Exercise 8
+
+Write a function operator `time_it` that wraps any function and prints how long it took to execute.
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+time_it <- function(fn) {
+  \(...) {
+    start <- Sys.time()
+    result <- fn(...)
+    elapsed <- Sys.time() - start
+    cat("Elapsed:", format(elapsed), "\n")
+    result
+  }
+}
+
+timed_mean <- time_it(mean)
+timed_mean(rnorm(1e6))
+```
+
+::: {.callout-warning title="Common Mistake"}
+Forgetting that `reduce()` needs a binary function (exactly 2 arguments):
+
+```r
+# WRONG
+reduce(1:5, sqrt)  # sqrt takes 1 argument, reduce needs 2
+```
+
+The function passed to `reduce()` must take `(accumulated, next_element)`.
+:::
+
+::: {.callout-tip title="Challenge"}
+Create a list of 5 transformation functions (e.g., add 10, multiply by 2, square, subtract 5, take sqrt). Use `reduce()` to compose them into a single function, then apply it to the number 3.
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+transforms <- list(
+  \(x) x + 10,
+  \(x) x * 2,
+  \(x) x^2,
+  \(x) x - 5,
+  \(x) sqrt(x)
+)
+
+composed <- reduce(transforms, \(f, g) \(x) g(f(x)))
+composed(3)
+
+# Verify step by step:
+# 3 -> 13 -> 26 -> 676 -> 671 -> sqrt(671)
+sqrt(671)
+```
+:::
+
+## Part 3: APIs and JSON
+
+### JSON Basics with jsonlite
+
+```{r}
+# Parse JSON string to R
+json_str <- '{"name": "Alice", "age": 21, "scores": [90, 85, 78]}'
+parsed <- fromJSON(json_str)
+parsed
+str(parsed)
+```
+
+```{r}
+# Convert R object to JSON
+my_list <- list(
+  product = "Widget",
+  price = 29.99,
+  tags = c("sale", "popular")
+)
+toJSON(my_list, auto_unbox = TRUE, pretty = TRUE)
+```
+
+`auto_unbox = TRUE` prevents single values from becoming JSON arrays.
+
+### Nested JSON to Data Frames
+
+```{r}
+json_array <- '[
+  {"name": "Widget", "price": 29.99, "in_stock": true},
+  {"name": "Gadget", "price": 49.99, "in_stock": false},
+  {"name": "Doohickey", "price": 9.99, "in_stock": true}
+]'
+
+products <- fromJSON(json_array)
+products
+class(products)
+```
+
+An array of uniform JSON objects becomes a data frame automatically.
+
+### Deeply Nested JSON
+
+```{r}
+nested_json <- '[
+  {"name": "Alice", "address": {"city": "NY", "zip": "10001"}},
+  {"name": "Bob", "address": {"city": "LA", "zip": "90001"}}
+]'
+
+# flatten = TRUE pulls nested fields up
+fromJSON(nested_json, flatten = TRUE)
+```
+
+### httr2 Request Building
+
+```{r}
+#| eval: false
+library(httr2)
+
+# Build a request piece by piece
+req <- request("https://httpbin.org/get") |>
+  req_headers(Accept = "application/json") |>
+  req_url_query(search = "widgets", page = 1)
+
+# Inspect before sending
+req
+```
+
+httr2 separates request construction from execution. This makes it easy to inspect and debug.
+
+### Performing and Parsing
+
+```{r}
+#| eval: false
+resp <- req |> req_perform()
+
+# Status code
+resp |> resp_status()
+
+# Body as parsed JSON (list)
+data <- resp |> resp_body_json()
+
+# Body as text
+text <- resp |> resp_body_string()
+```
+
+### API Key Security
+
+```{r}
+#| eval: false
+# Store keys in .Renviron (never in scripts)
+# MY_API_KEY=your_key_here
+
+# Read at runtime
+api_key <- Sys.getenv("MY_API_KEY")
+
+req <- request("https://api.example.com/data") |>
+  req_auth_bearer_token(api_key)
+```
+
+::: {.callout-warning title="Common Mistake"}
+Hard-coding API keys in your script:
+
+```r
+# NEVER do this
+req <- request("https://api.com") |>
+  req_headers(Authorization = "Bearer sk-abc123secret")
+```
+
+If you share or commit this file, your key is exposed. Always use environment variables.
+:::
+
+### Your Turn: Exercise 9
+
+Parse this JSON string into an R object and extract the second student's GPA:
+
+```{r}
+student_json <- '[
+  {"name": "Alice", "gpa": 3.8, "major": "CS"},
+  {"name": "Bob", "gpa": 3.2, "major": "Math"},
+  {"name": "Carlos", "gpa": 3.5, "major": "CS"}
+]'
+```
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+students <- fromJSON(student_json)
+students$gpa[2]
+```
+
+### Your Turn: Exercise 10
+
+Convert this R data frame to a JSON string:
+
+```{r}
+orders <- tibble(
+  id = 1:3,
+  item = c("laptop", "mouse", "keyboard"),
+  price = c(999.99, 29.99, 79.99)
+)
+```
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+toJSON(orders, pretty = TRUE)
+```
+
+### Your Turn: Exercise 11
+
+Parse this nested JSON and flatten it into a single-level data frame:
+
+```{r}
+nested <- '[
+  {"product": "Widget", "details": {"weight": 1.2, "color": "red"}},
+  {"product": "Gadget", "details": {"weight": 0.8, "color": "blue"}}
+]'
+```
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+fromJSON(nested, flatten = TRUE)
+```
+
+### Your Turn: Exercise 12
+
+Write a function `parse_api_response` that takes a JSON string representing an API response with a "data" field containing an array of records, and returns just the data as a tibble.
+
+```{r}
+test_response <- '{"status": "ok", "count": 2, "data": [{"id": 1, "value": 42}, {"id": 2, "value": 99}]}'
+```
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+parse_api_response <- function(json_str) {
+  parsed <- fromJSON(json_str)
+  as_tibble(parsed$data)
+}
+
+parse_api_response(test_response)
+```
+
+### Think About It
+
+You need to call an API 1,000 times (once per item in your dataset). The API allows 100 requests per minute. How would you structure this in R? What tools from today's session would you use?
+
+::: {.callout-tip title="Challenge"}
+Write a function `json_to_flat_tibble` that takes arbitrarily nested JSON (as a string) and returns a flat tibble. Handle the case where the JSON might be a single object or an array of objects.
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+json_to_flat_tibble <- function(json_str) {
+  parsed <- fromJSON(json_str, flatten = TRUE)
+  if (is.data.frame(parsed)) {
+    as_tibble(parsed)
+  } else if (is.list(parsed)) {
+    as_tibble(as.data.frame(parsed, stringsAsFactors = FALSE))
+  } else {
+    stop("Cannot convert to tibble")
+  }
+}
+
+# Test with array
+json_to_flat_tibble('[{"a": 1, "b": {"c": 2}}, {"a": 3, "b": {"c": 4}}]')
+
+# Test with single object
+json_to_flat_tibble('{"name": "test", "info": {"x": 1, "y": 2}}')
+```
+:::
+
+## Session Synthesis
+
+### Connect the Dots
+
+Build a complete, reusable data analysis toolkit.
+
+1. Write a function `explore_numeric` that accepts a data frame and a column name (bare), and returns a tibble with count, mean, median, sd, min, max. Use `{{ }}`.
+
+2. Write a function factory `make_outlier_detector` that takes a reference vector and returns a function that flags values more than 2 SDs from the mean.
+
+3. Parse this simulated API response and combine the results:
+
+```{r}
+api_pages <- list(
+  '{"page": 1, "data": [{"id": 1, "score": 85}, {"id": 2, "score": 92}]}',
+  '{"page": 2, "data": [{"id": 3, "score": 78}, {"id": 4, "score": 95}]}',
+  '{"page": 3, "data": [{"id": 5, "score": 88}, {"id": 6, "score": 91}]}'
+)
+```
+
+4. Use `map()` and `reduce()` to parse all pages and combine them into a single tibble.
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+# 1. Explore numeric column
+explore_numeric <- function(data, col) {
+  data |>
+    summarize(
+      count = n(),
+      mean = mean({{ col }}, na.rm = TRUE),
+      median = median({{ col }}, na.rm = TRUE),
+      sd = sd({{ col }}, na.rm = TRUE),
+      min = min({{ col }}, na.rm = TRUE),
+      max = max({{ col }}, na.rm = TRUE)
+    )
+}
+
+explore_numeric(sales, revenue)
+
+# 2. Outlier detector factory
+make_outlier_detector <- function(reference) {
+  mu <- mean(reference, na.rm = TRUE)
+  sigma <- sd(reference, na.rm = TRUE)
+  \(x) abs(x - mu) > 2 * sigma
+}
+
+is_outlier <- make_outlier_detector(sales$revenue)
+sum(is_outlier(sales$revenue))
+
+# 3 & 4. Parse and combine API pages
+all_scores <- map(api_pages, \(page_json) {
+  fromJSON(page_json)$data
+}) |>
+  reduce(bind_rows) |>
+  as_tibble()
+
+all_scores
+```
+
+### Key Takeaways
+
+- `{{ }}` handles 90% of tidy evaluation needs. Use it whenever you pass column names to tidyverse functions.
+- Function factories and operators let you build reusable, composable tools.
+- `reduce()` and `accumulate()` solve sequential combination problems.
+- jsonlite converts between R and JSON. httr2 handles HTTP requests.
+- Always handle API errors and respect rate limits.
+
+### Prepare for Next Session
+
+Session 10 covers web scraping with rvest, a cumulative tidyverse practice session, and a full end-to-end data pipeline project. Review your dplyr, tidyr, ggplot2, and purrr skills -- you will use all of them.
