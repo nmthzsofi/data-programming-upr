@@ -470,10 +470,10 @@ Lists hold elements of any type and any length:
 
 ```{r}
 student <- list(
-  name = "Alice",
-  age = 21,
-  scores = c(90, 85, 92, 88),
-  enrolled = TRUE
+  name = c("Alice","Kata"),
+  age = c(21,20),
+  scores = c(90, 85),
+  enrolled = c(TRUE,FALSE)
 )
 str(student)
 ```

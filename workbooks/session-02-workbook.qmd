@@ -173,6 +173,8 @@ students[which.min(students$gpa), ]
 
 # 4
 cs <- students[students$major == "CS", ]
+cs
+order(cs$gpa, decreasing = TRUE)
 cs[order(cs$gpa, decreasing = TRUE), ]
 ```
 
