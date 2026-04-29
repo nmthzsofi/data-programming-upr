@@ -164,6 +164,14 @@ In base R, you access columns with `df[[col_name]]` where `col_name` is a string
 Write a function `count_above` that takes a data frame, a column, and a threshold, and returns the number of rows where the column exceeds the threshold.
 
 ```{r}
+count_above <- function(df, col, trehold) {
+  df |> mutate(exceedes = {{col}} > trehold) |> filter(exceedes == TRUE) |> nrow()
+}
+
+count_above(sales, revenue, 400)
+```
+
+```{r}
 #| code-fold: true
 #| code-summary: "Solution"
 count_above <- function(data, col, threshold) {
@@ -181,6 +189,14 @@ count_above(sales, units, 60)
 Write a function `top_n_by_group` that takes a data frame, a grouping column, a value column, and n, then returns the top n rows by value within each group.
 
 ```{r}
+top_n_by_groups <- function(df, group_col, value_col, n){
+  slice_max(df, {{value_col}}, n=n, by={{group_col}})
+}
+
+top_n_by_groups(sales, region, revenue, 1)
+```
+
+```{r}
 #| code-fold: true
 #| code-summary: "Solution"
 top_n_by_group <- function(data, group_col, value_col, n = 3) {
@@ -194,6 +210,15 @@ sales |> top_n_by_group(region, revenue, n = 2) |> head(6)
 ### Your Turn: Exercise 3
 
 Write a function `quick_plot` that takes a data frame, x column, y column, and color column, then produces a scatter plot.
+
+```{r}
+quick_plot <- function(df, x,y,color){
+  ggplot(df,aes({{x}}, {{y}}, color={{color}})) + 
+    geom_point()
+}
+
+quick_plot(sales, units, revenue, region)
+```
 
 ```{r}
 #| code-fold: true
@@ -223,6 +248,15 @@ ggplot2 also uses data masking. Always embrace column arguments inside `aes()`.
 ### Your Turn: Exercise 4
 
 Write a function `summarize_string_col` that accepts a string column name (not a bare name) and computes the mean of that column.
+
+```{r}
+col_name <- "revenue"
+sumarize_string_col <- function(df,col_name){
+  df |> summarise(mean=mean(.data[[col_name]]))
+}
+
+sumarize_string_col(sales, "revenue")
+```
 
 ```{r}
 #| code-fold: true
@@ -353,6 +387,15 @@ accumulate(transactions, `+`)
 Create a function factory `make_normalizer` that takes a vector and returns a function that normalizes new values to the 0-1 range using the original vector's min and max.
 
 ```{r}
+make_normalizer <- function(vector){
+  \(x) (x-min(vector))/(max(vector)-min(vector))
+}
+norm_revenue <- make_normalizer(sales$revenue)
+norm_revenue(c(100,200,300,400))
+
+```
+
+```{r}
 #| code-fold: true
 #| code-summary: "Solution"
 make_normalizer <- function(reference) {
@@ -375,6 +418,10 @@ v3 <- c(3, 4, 5, 6)
 ```
 
 ```{r}
+reduce(list(v1,v2,v3), intersect)
+```
+
+```{r}
 #| code-fold: true
 #| code-summary: "Solution"
 reduce(list(v1, v2, v3), intersect)
@@ -393,6 +440,20 @@ accumulate(c(2, 3, 4, 5), `*`)
 ### Your Turn: Exercise 8
 
 Write a function operator `time_it` that wraps any function and prints how long it took to execute.
+
+```{r}
+time_it <- function(func){
+  \(x) {
+    start <- Sys.time()
+    result <- func(x)
+    elapsed <- Sys.time() - start
+    cat("Elapsed time:", format(elapsed))
+  }
+}
+
+mean_timer <- time_it(mean)
+mean_timer(rnorm(1e6))
+```
 
 ```{r}
 #| code-fold: true
