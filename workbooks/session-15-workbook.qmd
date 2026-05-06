@@ -1,0 +1,1711 @@
+---
+title: "Session 15: Version Control and Capstone"
+subtitle: "R Programming Workbook"
+author: "R Programming Course"
+date: today
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    toc-location: left
+    code-fold: show
+    code-tools: true
+    code-overflow: wrap
+    theme: cosmo
+    self-contained: true
+execute:
+  echo: true
+  warning: false
+  message: false
+---
+
+::: {.callout-note title="Learning Objectives"}
+By the end of this session, you will be able to:
+
+1. Initialize a Git repository and make commits from the command line and Positron
+2. Write clear commit messages that describe what changed and why (including conventional commit style)
+3. Push code to GitHub and pull changes from collaborators
+4. Create and merge branches for feature development using `git switch`
+5. Resolve merge conflicts
+6. Set up a `.gitignore` file for R projects (including bioinformatics-specific exclusions)
+7. Use `git restore` to discard file-level changes safely
+8. Automate report rendering with GitHub Actions
+9. Structure a complete data analysis project using all course skills
+10. Initialize `renv` with Bioconductor support (`bioc = TRUE`) for fully reproducible environments
+11. Present your work to peers
+:::
+
+# Part 1: Version Control with Git
+
+## Why Git?
+
+Every data project benefits from version control. Git tracks every change you make, lets you undo mistakes, and enables collaboration.
+
+Without Git, you end up with filenames like `analysis_v3_final_FIXED.R`. With Git, you have one file and a complete history.
+
+## Git Setup
+
+Before using Git, configure your identity. Run these commands once in the Positron terminal:
+
+```{bash}
+#| eval: false
+
+git config --global user.name "Your Name"
+git config --global user.email "your.email@example.com"
+```
+
+Verify your settings:
+
+```{bash}
+#| eval: false
+
+git config --list
+```
+
+## Core Git Workflow
+
+The basic Git cycle has four steps:
+
+1. Edit files in your working directory
+2. Stage the changes you want to save (`git add`)
+3. Commit the staged changes with a message (`git commit`)
+4. Push commits to a remote like GitHub (`git push`)
+
+```{bash}
+#| eval: false
+
+# Initialize a new repository
+git init
+
+# Check what has changed
+git status
+
+# Stage a file
+git add analysis.R
+
+# Stage all changes
+git add -A
+
+# Commit with a descriptive message
+git commit -m "Add initial data cleaning script"
+```
+
+## Example: Starting a Project
+
+```{bash}
+#| eval: false
+
+# Create project directory
+mkdir my-r-project
+cd my-r-project
+git init
+
+# Create initial files
+# (In practice, you would create these in Positron)
+touch README.md
+touch analysis.qmd
+
+# First commit
+git add -A
+git commit -m "Initialize project with README and analysis template"
+```
+
+### Your Turn: First Repository
+
+Create a new directory called `practice-repo`. Initialize it as a Git repository. Create a file called `hello.R` that prints "Hello, Git!" to the console. Stage and commit the file.
+
+```{bash}
+#| eval: false
+
+# Your code here
+mkdir practice-repo
+cd practice-repo
+git init
+
+# Create hello.R (use Positron or echo command)
+echo 'cat("Hello, Git!\n")' > hello.R
+
+# Stage and commit
+git add hello.R
+git commit -m "Add hello script"
+```
+
+## Writing Good Commit Messages
+
+A commit message should complete the sentence: "This commit will..."
+
+Good examples:
+
+- "Filter outliers from revenue data using 3 SD threshold"
+- "Add monthly trend visualization with ggplot2"
+- "Fix NA handling in summary statistics function"
+- "Restructure project to use here package for paths"
+
+Bad examples:
+
+- "Update"
+- "Fix stuff"
+- "WIP"
+- "Changes"
+
+### Your Turn: Judge These Messages
+
+For each commit message, decide if it is good or bad. If bad, rewrite it.
+
+1. "Updated code"
+2. "Add unit tests for data validation functions"
+3. "asdf"
+4. "Refactor pivot_longer call to handle multiple value columns"
+5. "Fixed the thing"
+
+```{r}
+#| code-fold: true
+#| eval: false
+
+# Suggested answers:
+# 1. Bad -> "Update filter thresholds in cleaning pipeline"
+# 2. Good
+# 3. Bad -> Describe what you actually changed
+# 4. Good
+# 5. Bad -> "Fix off-by-one error in date range filter"
+```
+
+::: {.callout-caution title="Your Turn — Conventional Commits Practice"}
+Given these 5 commit message drafts, rewrite each one in **conventional commit** style with a proper type prefix and scope. Conventional commit format: `type(scope): short description`
+
+Common types: `feat` (new feature), `fix` (bug fix), `docs` (documentation), `chore` (tooling/maintenance), `refactor`, `test`, `style`.
+
+Draft messages to rewrite:
+
+1. `fix typo`
+2. `WIP`
+3. `did some stuff`
+4. `add filter function`
+5. `update`
+:::
+
+::: {.callout-tip collapse="true" title="Solution"}
+Corrected conventional commit messages:
+
+1. `docs(README): fix typo in installation instructions`
+   - "fix typo" lacks scope and context. Specify what file and what kind of typo.
+
+2. `feat(analysis): add preliminary PCA step for sample QC`
+   - "WIP" is never a valid commit message. Describe the actual state of the work, even if incomplete.
+
+3. `refactor(cleaning): extract sample filtering into helper function`
+   - "did some stuff" is too vague. Name the change type and the affected component.
+
+4. `feat(qc): add filter_samples() with min_reads and max_pct_mt thresholds`
+   - "add filter function" is acceptable but undersells the detail. Add the scope and name the function.
+
+5. `chore(renv): update renv.lock after adding airway package`
+   - "update" has no type, no scope, and no description. Always say what was updated and why.
+
+The pattern is `type(scope): imperative verb + object`. Keep it under 72 characters.
+:::
+
+## Viewing History
+
+```{bash}
+#| eval: false
+
+# Full log
+git log
+
+# Compact one-line view
+git log --oneline
+
+# See which files changed in each commit
+git log --oneline --stat
+
+# See the diff for a specific commit
+git show abc1234
+```
+
+## Connecting to GitHub
+
+```{bash}
+#| eval: false
+
+# 1. Create a new repo on github.com (do NOT add README)
+
+# 2. Add the remote
+git remote add origin https://github.com/username/my-project.git
+
+# 3. Push your local commits
+git push -u origin main
+
+# 4. Future pushes
+git push
+```
+
+### Your Turn: Push to GitHub
+
+1. Create a new repository on GitHub (no README, no .gitignore)
+2. Connect your `practice-repo` to the GitHub remote
+3. Push your commit
+4. Verify the code appears on GitHub
+
+```{bash}
+#| eval: false
+
+# Your commands here
+cd practice-repo
+git remote add origin https://github.com/YOUR_USERNAME/practice-repo.git
+git push -u origin main
+```
+
+## Branching and Merging
+
+Branches let you develop features without affecting the main codebase.
+
+::: {.callout-note title="Modern Git: switch and restore"}
+Modern Git (>= 2.23) splits the overloaded `git checkout` into two clearer commands: `git switch` for branches, `git restore` for files. The old `git checkout` still works, but `switch`/`restore` is what you'll see in modern tutorials and what reduces confusion.
+
+| Old command | New command | What it does |
+|---|---|---|
+| `git checkout -b <branch>` | `git switch -c <branch>` | Create and switch to a new branch |
+| `git checkout <branch>` | `git switch <branch>` | Switch to an existing branch |
+| `git checkout -- <file>` | `git restore <file>` | Discard working-directory changes to a file |
+| `git checkout HEAD -- <file>` | `git restore --source=HEAD <file>` | Restore a file from a specific commit |
+:::
+
+```{bash}
+#| eval: false
+
+# Create and switch to a new branch
+git switch -c add-visualization
+
+# Work on the feature
+echo 'library(ggplot2)' > plot.R
+git add plot.R
+git commit -m "Add visualization script"
+
+# Switch back to main
+git switch main
+
+# Merge the feature branch
+git merge add-visualization
+
+# Delete the branch (no longer needed)
+git branch -d add-visualization
+```
+
+### Your Turn: Feature Branch
+
+1. Create a branch called `add-analysis`
+2. Create a file called `analysis.R` with some R code
+3. Commit it on the branch
+4. Switch back to main
+5. Verify `analysis.R` does not exist on main
+6. Merge the branch
+7. Verify `analysis.R` now exists on main
+
+```{bash}
+#| eval: false
+
+# Your code here
+git switch -c add-analysis
+echo 'summary(mtcars)' > analysis.R
+git add analysis.R
+git commit -m "Add exploratory analysis of mtcars"
+
+git switch main
+ls  # analysis.R should not be here
+
+git merge add-analysis
+ls  # analysis.R should now be here
+
+git branch -d add-analysis
+```
+
+::: {.callout-caution title="Your Turn — Branch Strategy for Parallel Features"}
+You are working on an RNA-seq project. Three tasks need to happen in parallel:
+
+**(a)** Adding a QC report
+**(b)** Updating from DESeq2 1.40 to DESeq2 1.42
+**(c)** Writing the README
+
+Sketch a branch plan. Answer these questions:
+
+1. Which branch does each task branch off from?
+2. In what order should they be merged back, and why?
+3. Are there any dependencies between the tasks — i.e., should (b) be merged before (a) tests against it?
+
+Draw an ASCII `git log --graph` sketch of the resulting history.
+:::
+
+::: {.callout-tip collapse="true" title="Solution"}
+All three branches should branch off from `main` independently, since they touch different parts of the project.
+
+```
+* e3f1a2c (main) Merge branch 'feat/readme'
+|\
+| * b4d9f01 (feat/readme) docs(README): add usage and reproduction steps
+|/
+* 7c3a881 Merge branch 'feat/qc-report'
+|\
+| * 2a1d4e5 (feat/qc-report) feat(qc): add per-sample QC report with plotly
+|/
+* 9f0c3b2 Merge branch 'chore/deseq2-update'
+|\
+| * 1e8b7d4 (chore/deseq2-update) chore(deps): update DESeq2 to 1.42, renv::snapshot()
+|/
+* 0a2f6c1 Add initial project structure
+```
+
+**Recommended merge order:**
+
+1. Merge `chore/deseq2-update` **first**. The QC report likely runs DESeq2, so the QC branch should be tested against the updated version after the update lands on `main`. Merging the update first prevents a second conflict when the QC branch is eventually merged.
+2. Merge `feat/qc-report` second, rebasing onto updated `main` if needed.
+3. Merge `feat/readme` last — it is purely documentation and has no code dependencies.
+
+**Key principle:** Merge infrastructure/dependency changes before feature branches that depend on them. Branch off `main` often; rebase onto the latest `main` before merging to minimize conflicts.
+:::
+
+## Handling Merge Conflicts
+
+Conflicts happen when two branches change the same line. Git marks the conflict in the file:
+
+```
+<<<<<<< HEAD
+threshold <- 0.05
+=======
+threshold <- 0.01
+>>>>>>> feature-branch
+```
+
+To resolve:
+
+1. Open the file
+2. Choose the correct version (or combine them)
+3. Remove the `<<<<<<<`, `=======`, and `>>>>>>>` markers
+4. Stage and commit
+
+```{bash}
+#| eval: false
+
+# After fixing the conflict:
+git add analysis.R
+git commit -m "Resolve conflict: use 0.01 threshold per team discussion"
+```
+
+::: {.callout-warning title="Common Mistake"}
+Committing a file that still contains conflict markers (`<<<<<<<`, `=======`, `>>>>>>>`). Your code will not run. Always search for these markers before committing a merge resolution.
+:::
+
+::: {.callout-caution title="Your Turn — Resolve a Merge Conflict in an Analysis Script"}
+Two branches have made competing edits to the same `filter_samples()` function.
+
+**Branch `feat/read-depth-filter`** has:
+
+```r
+filter_samples <- function(counts, metadata) {
+  keep <- colSums(counts) >= 10e6   # min 10 M reads
+  counts[, keep]
+}
+```
+
+**Branch `feat/mt-filter`** has:
+
+```r
+filter_samples <- function(counts, metadata) {
+  keep <- metadata$pct_mt <= 0.1    # max 10 % mitochondrial
+  counts[, keep]
+}
+```
+
+When you merge `feat/mt-filter` into `feat/read-depth-filter`, Git cannot resolve this automatically because both branches edited the same lines.
+
+**Task:** Manually resolve the conflict so that the final function applies **both** filters. Write the resolved function below.
+:::
+
+::: {.callout-tip collapse="true" title="Solution"}
+The merged function keeps both conditions. Apply them in sequence (read-depth first, then MT percentage, which is a common QC ordering):
+
+```r
+filter_samples <- function(counts, metadata,
+                           min_reads   = 10e6,
+                           max_pct_mt  = 0.1) {
+  # Filter 1: minimum library size
+  keep_reads <- colSums(counts) >= min_reads
+
+  # Filter 2: maximum mitochondrial fraction
+  keep_mt    <- metadata$pct_mt <= max_pct_mt
+
+  keep <- keep_reads & keep_mt
+
+  message(sprintf(
+    "Retained %d / %d samples after QC filters.",
+    sum(keep), length(keep)
+  ))
+
+  counts[, keep]
+}
+```
+
+After editing the file to remove all conflict markers, stage and commit:
+
+```bash
+git add R/qc.R
+git commit -m "fix(qc): merge read-depth and MT filters into filter_samples()"
+```
+
+Making the thresholds arguments (with defaults) is better practice than hardcoding them — it makes the function reusable for different experiments.
+:::
+
+## The .gitignore File
+
+Create a `.gitignore` file to exclude files that should not be tracked:
+
+```{bash}
+#| eval: false
+
+# .gitignore for R projects
+.Rhistory
+.RData
+.Rproj.user/
+renv/library/
+renv/staging/
+
+# Generated output
+*.html
+*.pdf
+_site/
+
+# Large data files
+data/raw/*.csv
+
+# OS files
+.DS_Store
+Thumbs.db
+```
+
+Place `.gitignore` in the project root and commit it as your first or second commit.
+
+### Your Turn: Write a .gitignore
+
+Write a `.gitignore` for a project that:
+
+- Uses renv for package management
+- Renders Quarto documents to HTML
+- Has a `data/raw/` folder with large CSV files that should not be tracked
+- Has a `data/clean/` folder with processed RDS files that should be tracked
+
+```{bash}
+#| eval: false
+
+# Your .gitignore content:
+.Rhistory
+.RData
+.Rproj.user/
+
+# renv
+renv/library/
+renv/staging/
+
+# Rendered output
+*.html
+_site/
+_freeze/
+
+# Large raw data (but NOT clean data)
+data/raw/*.csv
+
+# OS files
+.DS_Store
+Thumbs.db
+```
+
+::: {.callout-caution title="Your Turn — Bioinformatics .gitignore"}
+Write a `.gitignore` for an RNA-seq project that:
+
+- Excludes raw FASTQ files (too large for Git)
+- Excludes `renv/library/` (reproducible via `renv::restore()`)
+- Excludes `.Rproj.user/` (IDE state)
+- Excludes rendered HTML output
+- Excludes `_targets/objects/` (large cached targets)
+- **Includes** `_targets/meta/meta` (the targets dependency graph — small and important)
+- **Includes** small example data files in `data/example/`
+
+Write the file with comments explaining each section.
+:::
+
+::: {.callout-tip collapse="true" title="Solution"}
+```bash
+# ─── R / RStudio ─────────────────────────────────────────────────────────────
+.Rhistory
+.RData
+.Rproj.user/
+
+# ─── renv: exclude the installed library, keep the lockfile ──────────────────
+renv/library/
+renv/staging/
+# renv.lock is TRACKED — it is what makes the project reproducible
+
+# ─── Quarto rendered output ───────────────────────────────────────────────────
+*.html
+*.pdf
+_site/
+_freeze/
+
+# ─── Raw sequencing data (too large for Git; use a data repository) ───────────
+*.fastq
+*.fastq.gz
+*.fq
+*.fq.gz
+*.bam
+*.bam.bai
+data/raw/
+
+# ─── targets pipeline cache ───────────────────────────────────────────────────
+_targets/objects/     # large cached R objects — do NOT commit
+_targets/scratch/
+!_targets/meta/       # the dependency graph is small; ALWAYS commit it
+!_targets/meta/meta
+
+# ─── Example data (small, committed for reproducibility) ──────────────────────
+# data/example/ is intentionally NOT excluded
+# If your raw data folder pattern catches too much, be explicit:
+!data/example/
+
+# ─── OS and editor noise ──────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+*.swp
+```
+
+Key points:
+- `renv.lock` is always tracked; `renv/library/` never is.
+- The `!` prefix negates a previous exclusion pattern — order matters. Put `!_targets/meta/` after `_targets/`.
+- FASTQ / BAM files belong in a dedicated data repository (e.g., SRA, Zenodo, or institutional storage), not in Git.
+- `_targets/meta/meta` is the targets metadata file. Committing it means collaborators see the same pipeline dependency graph.
+:::
+
+::: {.callout-caution title="Your Turn — Atomic Commits Practice"}
+You have been working on an RNA-seq project and your working directory now has three unrelated changes ready to be staged:
+
+1. You added a new `normalize_counts()` function to `R/normalize.R`
+2. You fixed a typo in `README.md` ("reproduciblity" -> "reproducibility")
+3. You updated `.gitignore` to exclude `*.bam` files
+
+**Task:** Use `git add -p` (patch mode) to stage and commit these as **three separate atomic commits** with proper conventional commit messages.
+
+Write the three `git commit -m` commands you would use.
+:::
+
+::: {.callout-tip collapse="true" title="Solution"}
+```bash
+# Stage only the normalize.R changes (use git add -p and select only those hunks)
+git add -p R/normalize.R
+git commit -m "feat(normalization): add normalize_counts() using DESeq2 size factors"
+
+# Stage only the README change
+git add -p README.md
+git commit -m "docs(README): fix typo in reproducibility section"
+
+# Stage only the .gitignore change
+git add .gitignore
+git commit -m "chore(gitignore): exclude BAM alignment files"
+```
+
+`git add -p` enters interactive patch mode. Git shows each changed "hunk" and asks `Stage this hunk? [y/n/q/a/d/?]`. Answer `y` for hunks you want in the current commit, `n` for hunks that belong in a later commit. This is the cleanest way to split logically unrelated edits that happen to be in the same file.
+
+**Why atomic commits matter:**
+- Each commit does exactly one thing — it is easy to revert with `git revert`
+- `git bisect` can pinpoint which commit introduced a bug
+- Code review is easier when reviewers can evaluate each change independently
+:::
+
+## Git in Positron
+
+Positron has a built-in Source Control pane:
+
+- **Stage**: Click the `+` next to changed files
+- **Commit**: Type a message in the text box and click Commit
+- **Push/Pull**: Use the arrows in the Source Control header
+- **Branch**: Click the branch name in the bottom status bar
+- **Diff**: Click a changed file to see what changed
+
+You can also open the integrated terminal (Ctrl+` or Cmd+`) to run Git commands directly.
+
+::: {.callout-tip title="Challenge"}
+Set up a complete project with Git:
+
+1. Create a new Positron project with Git enabled
+2. Add a `.gitignore` and commit it
+3. Create an `analysis.qmd` file with a basic Quarto document
+4. Commit the initial analysis
+5. Create a branch using `git switch -c`, add a ggplot2 visualization, commit on the branch
+6. Merge the branch back to main
+7. Push everything to GitHub
+
+This exercise combines everything from Part 1.
+:::
+
+## Automating with GitHub Actions
+
+GitHub Actions runs workflows automatically on every `git push`. For a Quarto report backed by `renv`, this means every push re-renders your report in a clean environment — catching any "works on my machine" issues immediately.
+
+### Minimal render workflow
+
+Create the file `.github/workflows/render.yml` in your repository:
+
+```{bash}
+#| eval: false
+mkdir -p .github/workflows
+```
+
+```yaml
+# .github/workflows/render.yml
+on: [push]
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: r-lib/actions/setup-r@v2
+
+      - uses: quarto-dev/quarto-actions/setup@v2
+
+      - uses: r-lib/actions/setup-renv@v2
+
+      - run: quarto render report.qmd
+```
+
+The four `uses:` steps handle everything: checking out the repository, installing R, installing Quarto, and restoring your exact package versions from `renv.lock`. The final `run:` step renders your report.
+
+::: {.callout-note title="Why this matters"}
+Every `git push` automatically rebuilds your Quarto report. This is how modern bioinformatics labs ensure reports stay in sync with code. If a collaborator's change breaks the render, the workflow fails and GitHub sends a notification — before anyone notices the HTML is stale.
+:::
+
+Commit the workflow file:
+
+```{bash}
+#| eval: false
+git add .github/workflows/render.yml
+git commit -m "ci: add GitHub Actions workflow to render report on push"
+git push
+```
+
+After pushing, go to the **Actions** tab on your GitHub repository to watch the workflow run.
+
+::: {.callout-caution title="Your Turn — GitHub Actions Debugging"}
+The following `render.yml` causes a workflow failure. The error message on GitHub is:
+
+```
+Error in loadNamespace(name) : there is no package called 'DESeq2'
+Calls: ... :: quarto render -> source -> ...
+Execution halted
+```
+
+Here is the broken workflow:
+
+```yaml
+on: [push]
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: r-lib/actions/setup-r@v2
+      - uses: quarto-dev/quarto-actions/setup@v2
+      - run: quarto render report.qmd
+```
+
+**Task:** Identify what is missing and write the corrected `render.yml`.
+:::
+
+::: {.callout-tip collapse="true" title="Solution"}
+The missing step is `r-lib/actions/setup-renv@v2`. Without it, the runner has a bare R installation with no packages. The `renv.lock` file is present in the repository but nothing reads it.
+
+Corrected workflow:
+
+```yaml
+on: [push]
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: r-lib/actions/setup-r@v2
+
+      - uses: quarto-dev/quarto-actions/setup@v2
+
+      - uses: r-lib/actions/setup-renv@v2    # <-- this was missing
+
+      - run: quarto render report.qmd
+```
+
+**Why the dependency chain matters:**
+
+1. `checkout` — makes your code (including `renv.lock`) available
+2. `setup-r` — installs R
+3. `setup-quarto` — installs Quarto (can come before or after R)
+4. `setup-renv` — reads `renv.lock`, calls `renv::restore()`, installs all packages including `DESeq2`
+5. `quarto render` — now all packages exist
+
+If `setup-renv` is missing, step 5 fails immediately because R has no packages beyond base.
+:::
+
+# Part 2: Capstone Project
+
+## Project Specification
+
+Your final project demonstrates the skills you have built over 15 sessions. Choose a dataset and produce a complete, reproducible analysis.
+
+**Requirements:**
+
+1. An R project using `here` for file paths
+2. At least one data import and cleaning step
+3. At least three ggplot2 visualizations
+4. At least one summary table
+5. A Quarto document that tells the story of your analysis
+6. A Git repository with meaningful commit history
+7. A README.md that describes the project
+
+## Project Structure Template
+
+```{r}
+#| eval: false
+
+# Recommended project layout
+structure <- '
+my-project/
+  .gitignore
+  README.md
+  renv.lock
+  my-project.Rproj
+  .github/
+    workflows/
+      render.yml
+  R/
+    01-import.R
+    02-clean.R
+    03-analyze.R
+    04-visualize.R
+  data/
+    raw/         # Original data (possibly gitignored)
+    clean/       # Processed data
+  output/
+    figures/     # Saved plots
+    tables/      # Saved tables
+  report.qmd    # Main Quarto document
+'
+```
+
+## Capstone Setup: Reproducible Environment
+
+Before writing any analysis code, set up `renv` so your package environment is locked and reproducible.
+
+```{r}
+#| eval: false
+
+# Initialize renv with Bioconductor support
+renv::init(bioc = TRUE)
+```
+
+::: {.callout-important title="Why bioc = TRUE?"}
+Pass `bioc = TRUE` so `renv` recognizes Bioconductor packages and pins their version compatibly with your R version. Without this, installing `DESeq2` or `limma` later will produce confusing version mismatches. Bioconductor has its own release cycle tied to R versions; `renv` needs to know about this to generate a correct `renv.lock`.
+:::
+
+For faster Bioconductor + CRAN installs, use `pak::pkg_install()`. It downloads packages in parallel and has smarter dependency resolution than either `install.packages()` or `BiocManager::install()`.
+
+```{r}
+#| eval: false
+
+# Install pak if not already available
+install.packages("pak")
+
+# Install a CRAN package
+pak::pkg_install("dplyr")
+
+# Install a Bioconductor package
+pak::pkg_install("bioc::DESeq2")
+
+# Install multiple packages at once (runs in parallel)
+pak::pkg_install(c("ggplot2", "here", "bioc::airway", "bioc::DESeq2"))
+```
+
+::: {.callout-note title="pak vs install.packages"}
+`pak::pkg_install()` is the modern replacement for both `install.packages()` and `BiocManager::install()` combined. It is typically 2-10x faster because it downloads binary packages in parallel and only reinstalls what has changed. Use `pak` for interactive installs; `renv` handles restoration in automated contexts.
+:::
+
+## Step 1: Choose a Dataset
+
+Pick a dataset that interests you. Some options:
+
+```{r}
+#| eval: false
+
+# Built-in datasets
+data(diamonds, package = "ggplot2")   # 54,000 diamonds with price, cut, etc.
+data(storms, package = "dplyr")       # Atlantic storms from 1975-2021
+data(starwars, package = "dplyr")     # Star Wars characters
+data(gapminder, package = "gapminder") # Country-level economic data
+
+# Or use your own data (CSV, Excel, API, web scraping)
+```
+
+::: {.callout-tip title="Recommended bioinformatics datasets"}
+If you are taking this course as part of a bioinformatics programme, consider using a biological dataset so your capstone demonstrates domain-relevant skills.
+
+**`airway` (Bioconductor) — recommended**
+
+RNA-seq read counts from human airway smooth muscle cells (Himes et al. 2014). Eight samples across two conditions (treated/untreated with dexamethasone). This is the canonical teaching dataset for DESeq2.
+
+```r
+pak::pkg_install("bioc::airway")
+library(airway)
+data(airway)
+airway   # SummarizedExperiment with 63,677 genes x 8 samples
+```
+
+**`palmerpenguins` — clean tabular alternative**
+
+If you prefer a tidy data frame without Bioconductor dependencies, `palmerpenguins` is a well-documented alternative to `iris`. Three penguin species, body measurements, and island data.
+
+```r
+pak::pkg_install("palmerpenguins")
+library(palmerpenguins)
+glimpse(penguins)
+```
+
+**GEO public dataset — advanced option**
+
+Download a small, pre-processed DESeq2 result table from NCBI GEO (Gene Expression Omnibus). For example, GSE52778 accompanies the `airway` package. Use the `GEOquery` Bioconductor package:
+
+```r
+pak::pkg_install("bioc::GEOquery")
+library(GEOquery)
+gse <- getGEO("GSE52778", GSEMatrix = TRUE)
+```
+
+You are free to use any dataset you find interesting. The bioinformatics options are nudges, not requirements.
+:::
+
+### Your Turn: Pick and Explore
+
+Choose your dataset and run an initial exploration:
+
+```{r}
+#| eval: false
+
+# Load your data
+library(tidyverse)
+
+# Replace with your chosen dataset
+my_data <- diamonds
+
+# Explore
+glimpse(my_data)
+summary(my_data)
+
+# How many rows and columns?
+dim(my_data)
+
+# Any missing values?
+colSums(is.na(my_data))
+```
+
+::: {.callout-caution title="Your Turn — Capstone Bioinformatics Path (airway)"}
+This is a mini-version of the capstone using the `airway` dataset. Complete each step.
+
+**Step 1:** Load the data and extract a count matrix and sample metadata.
+
+**Step 2:** Compute total read counts per sample (column sums of the count matrix).
+
+**Step 3:** Plot total counts per sample as a bar chart with `ggplot2`. Color bars by treatment condition (`dex` column in the metadata).
+
+**Step 4:** Write a parameterized Quarto report where the parameter `min_count` controls which genes are included in the plot (genes with row mean >= `min_count`).
+
+**Step 5:** Render the report with `quarto render report.qmd -P min_count:10`.
+:::
+
+::: {.callout-tip collapse="true" title="Solution"}
+```r
+# Step 1: Load data
+library(airway)
+library(SummarizedExperiment)
+library(tidyverse)
+
+data(airway)
+counts   <- assay(airway, "counts")        # matrix: genes x samples
+metadata <- as.data.frame(colData(airway)) # sample-level metadata
+
+# Step 2: Total counts per sample
+total_counts <- colSums(counts)
+metadata$total_counts <- total_counts
+
+# Step 3: Bar chart coloured by treatment
+ggplot(metadata, aes(x = rownames(metadata), y = total_counts / 1e6,
+                     fill = dex)) +
+  geom_col() +
+  scale_fill_manual(values = c("untrt" = "steelblue", "trt" = "tomato"),
+                    labels = c("untrt" = "Untreated", "trt" = "Dexamethasone")) +
+  labs(title = "Total Sequencing Depth per Sample",
+       x = "Sample", y = "Total Counts (millions)",
+       fill = "Treatment") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+For the parameterized report, add to the YAML header:
+
+```yaml
+params:
+  min_count: 10
+```
+
+Then filter in a code chunk:
+
+```r
+# Filter genes by minimum average count
+keep <- rowMeans(counts) >= params$min_count
+counts_filtered <- counts[keep, ]
+cat(sprintf("Retained %d / %d genes with mean count >= %d\n",
+            nrow(counts_filtered), nrow(counts), params$min_count))
+```
+
+Render from the terminal:
+
+```bash
+quarto render report.qmd -P min_count:10
+quarto render report.qmd -P min_count:100
+```
+:::
+
+## Step 2: Clean and Transform
+
+Apply the tidyverse skills from Sessions 5-7:
+
+```{r}
+#| eval: false
+
+library(tidyverse)
+
+# Example cleaning pipeline
+clean_data <- my_data |>
+  # Remove rows with missing key variables
+  filter(!is.na(price), !is.na(carat)) |>
+  # Create new variables
+  mutate(
+    price_per_carat = price / carat,
+    size_category = case_when(
+      carat < 0.5  ~ "Small",
+      carat < 1.0  ~ "Medium",
+      carat < 2.0  ~ "Large",
+      .default = "Very Large"
+    )
+  ) |>
+  # Remove extreme outliers
+  filter(price_per_carat < quantile(price_per_carat, 0.99))
+```
+
+### Your Turn: Clean Your Data
+
+Write a cleaning pipeline for your chosen dataset. Include at least:
+
+- One `filter()` step
+- One `mutate()` step
+- One type conversion or recoding step
+
+```{r}
+#| eval: false
+
+# Your cleaning pipeline here
+```
+
+## Step 3: Summarize
+
+Create summary statistics using dplyr:
+
+```{r}
+#| eval: false
+
+# Example summaries
+summary_by_cut <- clean_data |>
+  summarize(
+    n = n(),
+    mean_price = mean(price),
+    median_price = median(price),
+    mean_carat = mean(carat),
+    .by = cut
+  ) |>
+  arrange(desc(mean_price))
+
+summary_by_cut
+```
+
+### Your Turn: Create Summaries
+
+Produce at least two summary tables for your data:
+
+```{r}
+#| eval: false
+
+# Summary 1: grouped summary
+
+# Summary 2: cross-tabulation or different grouping
+```
+
+## Step 4: Visualize
+
+Create at least three visualizations using ggplot2 (Sessions 8-9):
+
+```{r}
+#| eval: false
+
+library(ggplot2)
+
+# Visualization 1: Distribution
+ggplot(clean_data, aes(x = price)) +
+  geom_histogram(bins = 50, fill = "steelblue", color = "white") +
+  scale_x_log10(labels = scales::dollar) +
+  labs(title = "Distribution of Diamond Prices",
+       x = "Price (log scale)", y = "Count") +
+  theme_minimal()
+
+# Visualization 2: Relationship
+ggplot(clean_data, aes(x = carat, y = price, color = cut)) +
+  geom_point(alpha = 0.1, size = 0.5) +
+  geom_smooth(method = "lm", se = FALSE) +
+  scale_y_continuous(labels = scales::dollar) +
+  labs(title = "Price vs Carat by Cut Quality",
+       x = "Carat", y = "Price", color = "Cut") +
+  theme_minimal()
+
+# Visualization 3: Comparison
+ggplot(clean_data, aes(x = cut, y = price_per_carat, fill = cut)) +
+  geom_boxplot(show.legend = FALSE) +
+  scale_y_continuous(labels = scales::dollar) +
+  labs(title = "Price per Carat by Cut Quality",
+       x = "Cut", y = "Price per Carat") +
+  theme_minimal() +
+  coord_flip()
+```
+
+### Your Turn: Create Your Visualizations
+
+Build three plots for your dataset. Each should show something different:
+
+1. A distribution (histogram, density, or bar chart)
+2. A relationship (scatter plot, line plot, or heatmap)
+3. A comparison (box plot, faceted plot, or grouped bar chart)
+
+```{r}
+#| eval: false
+
+# Visualization 1: Distribution
+
+# Visualization 2: Relationship
+
+# Visualization 3: Comparison
+```
+
+## Step 5: Write Your Quarto Report
+
+Create a `report.qmd` that tells the story. Use the skills from Sessions 11-13:
+
+```{r}
+#| eval: false
+
+# Template for report.qmd:
+report_template <- '
+---
+title: "Your Project Title"
+author: "Your Name"
+date: today
+format:
+  html:
+    toc: true
+    code-fold: true
+    theme: cosmo
+execute:
+  echo: true
+  warning: false
+---
+
+## Introduction
+
+What question are you exploring? Why does it matter?
+
+## Data
+
+Where does the data come from? What does each variable represent?
+
+## Cleaning and Preparation
+
+What steps did you take to prepare the data?
+
+## Analysis
+
+What patterns did you find?
+
+## Visualizations
+
+Show and explain your three plots.
+
+## Findings
+
+What did you learn? What surprised you?
+
+## Conclusion
+
+Summary of results and possible next steps.
+
+## Reproducibility
+
+```{r}
+sessioninfo::session_info()
+```
+'
+```
+
+### Your Turn: Draft Your Report
+
+Open a new Quarto document and write the first draft of your report. Include:
+
+- A title and author
+- An introduction explaining your question
+- At least one code chunk that loads and cleans data
+- At least one visualization with interpretation
+
+## Step 6: Version Control Your Project
+
+Initialize Git and make meaningful commits as you work:
+
+```{bash}
+#| eval: false
+
+# Initialize
+cd my-project
+git init
+
+# First commit: project structure
+git add .gitignore README.md
+git commit -m "Initialize project structure with gitignore and README"
+
+# Second commit: data import
+git add R/01-import.R
+git commit -m "Add data import script for diamonds dataset"
+
+# Third commit: cleaning
+git add R/02-clean.R
+git commit -m "Add cleaning pipeline: filter outliers, create size categories"
+
+# Continue committing as you work...
+```
+
+## Step 7: Snapshot Your Environment
+
+::: {.callout-important title="Non-optional reproducibility artifacts"}
+These two artifacts are what makes your analysis reproducible. Without them, your collaborator (or your future self) cannot recreate your results.
+:::
+
+**Step 7a — Snapshot**
+
+After installing all packages needed for your analysis, take a snapshot:
+
+```{r}
+#| eval: false
+
+renv::snapshot()
+```
+
+Verify that `renv.lock` exists and commit it:
+
+```{bash}
+#| eval: false
+
+# Confirm the lockfile was created or updated
+ls renv.lock
+
+git add renv.lock
+git commit -m "chore(renv): snapshot package environment after adding airway"
+```
+
+**Step 7b — Session info**
+
+Add a final code chunk at the end of your `report.qmd`:
+
+```{r}
+#| eval: false
+
+# Prefer sessioninfo over base sessionInfo() for cleaner output
+# install if needed: pak::pkg_install("sessioninfo")
+sessioninfo::session_info()
+```
+
+This chunk records the exact R version, platform, and package versions used when the report was last rendered. Commit the rendered output and the source together.
+
+::: {.callout-caution title="Your Turn — renv Round-Trip"}
+Simulate the full reproducibility round-trip that a collaborator would experience.
+
+**On your machine:**
+
+1. Install the `airway` Bioconductor package using `pak::pkg_install("bioc::airway")`
+2. Run `renv::snapshot()` and confirm `renv.lock` lists `airway`
+3. Commit `renv.lock` and push to GitHub
+
+**Simulating a clean clone:**
+
+4. Create a new temporary directory and clone the repository (or copy without the `renv/library/` folder)
+5. Open R in that directory and run `renv::restore()`
+6. Confirm that `airway` is now installed and `packageVersion("airway")` matches the version in `renv.lock`
+
+Write the commands for each step and describe what output you expect from `renv::restore()`.
+:::
+
+::: {.callout-tip collapse="true" title="Solution"}
+```r
+# --- On your machine ---
+
+# Step 1: install airway
+pak::pkg_install("bioc::airway")
+library(airway)  # verify it loads
+
+# Step 2: snapshot
+renv::snapshot()
+# Expected output:
+# The following package(s) will be updated in the lockfile:
+# - airway   [* -> 1.42.0]
+# Do you want to proceed? [y/N]: y
+
+# Verify airway appears in renv.lock
+readLines("renv.lock") |> grep("airway", x = _, value = TRUE)
+# Should show: "Package": "airway",
+
+# Step 3: commit and push
+# (in terminal)
+# git add renv.lock
+# git commit -m "chore(renv): add airway to lockfile"
+# git push
+```
+
+```r
+# --- Simulating a clean clone ---
+
+# Step 4: in a fresh R session with no renv library:
+setwd("/path/to/cloned/repo")
+
+# Step 5: restore
+renv::restore()
+# Expected output:
+# The following packages will be installed:
+#   airway       [1.42.0]
+#   ... (all other locked packages)
+# Do you want to proceed? [y/N]: y
+# Installing airway [1.42.0] ...
+# OK (installed binary)
+
+# Step 6: verify
+library(airway)
+packageVersion("airway")
+# Should match renv.lock exactly, e.g., '1.42.0'
+```
+
+The key guarantee: `renv::restore()` reads `renv.lock` and installs exactly those versions — not the latest available on CRAN or Bioconductor. This is what makes your analysis reproducible months or years later.
+:::
+
+::: {.callout-caution title="Your Turn — pak vs install.packages Benchmark"}
+Compare installation speed between `install.packages()` and `pak::pkg_install()` for a small set of packages.
+
+**Task:** Use `system.time()` to time installing `dplyr`, `ggplot2`, and `airway` using both methods. (Remove the packages first so they are not already cached, or run in a fresh R session / `renv` sandbox.)
+
+Write the benchmark code and predict: which method will be faster, and why?
+:::
+
+::: {.callout-tip collapse="true" title="Solution"}
+```r
+# Benchmark install.packages (CRAN only; airway requires BiocManager separately)
+t1 <- system.time({
+  install.packages(c("dplyr", "ggplot2"), repos = "https://cloud.r-project.org")
+  BiocManager::install("airway", ask = FALSE)
+})
+
+# Benchmark pak (handles CRAN and Bioconductor in one call)
+t2 <- system.time({
+  pak::pkg_install(c("dplyr", "ggplot2", "bioc::airway"))
+})
+
+cat("install.packages + BiocManager:", t1["elapsed"], "seconds\n")
+cat("pak::pkg_install:              ", t2["elapsed"], "seconds\n")
+cat("Speedup factor:", round(t1["elapsed"] / t2["elapsed"], 1), "x\n")
+```
+
+**Why `pak` is typically 2-10x faster:**
+
+1. **Parallel downloads** — `pak` downloads multiple packages simultaneously. `install.packages()` downloads one at a time.
+2. **Binary-first** — `pak` prefers pre-compiled binaries (RSPM / Posit Package Manager) over source compilation, especially on Linux.
+3. **Smarter dependency resolution** — `pak` computes the full dependency graph before downloading anything, avoiding redundant work.
+4. **Unified interface** — no need to call `BiocManager::install()` separately; `pak` handles both CRAN and Bioconductor packages in one pass.
+
+In practice, the speedup is most dramatic for Bioconductor packages, which have deep dependency trees.
+:::
+
+::: {.callout-tip title="Challenge"}
+**Full capstone project:**
+
+Build a complete analysis that uses skills from every phase of the course:
+
+**Base R (Sessions 1-4):**
+
+- Use `tryCatch()` for error handling in data import
+- Write at least one custom function
+
+**Tidyverse (Sessions 5-10):**
+
+- Full dplyr pipeline with `filter()`, `mutate()`, `summarize()`
+- At least one pivot operation
+- At least one string or date manipulation
+- Three ggplot2 visualizations with custom themes
+
+**Quarto (Sessions 11-13):**
+
+- Parameterized report (e.g., parameter for which region to analyze)
+- Cross-references for figures
+- A table of contents
+
+**Professional Practices (Sessions 14-15):**
+
+- `here` package for all file paths
+- `renv::init(bioc = TRUE)` for dependency management
+- Clean code following the tidyverse style guide
+- Git repository with 10+ meaningful commits using `git switch`/`git restore`
+- README.md documenting the project
+- GitHub Actions workflow that renders the report on every push
+- `renv::snapshot()` committed and verified
+- `sessioninfo::session_info()` chunk at the end of the report
+
+This is the full capstone. Work on it incrementally, committing as you go.
+:::
+
+::: {.callout-caution title="Your Turn — Complete Reproducible Mini-Project (Bonus Challenge)"}
+Set up a complete reproducible mini-project from scratch. This integrates everything from Sessions 14-15.
+
+Work through the following checklist, running each command in order. Write down the exact commands you use.
+
+- [ ] `mkdir rnaseq-mini && cd rnaseq-mini && git init`
+- [ ] Create `.gitignore` (use the bioinformatics template from the earlier exercise)
+- [ ] `git add .gitignore && git commit -m "chore: add bioinformatics gitignore"`
+- [ ] Open R: `renv::init(bioc = TRUE)`
+- [ ] `pak::pkg_install(c("bioc::airway", "ggplot2", "here", "sessioninfo"))`
+- [ ] Write `analysis.R`: load `airway`, compute total counts, save a bar chart to `output/figures/`
+- [ ] Write `report.qmd`: source `analysis.R`, display the chart, call `sessioninfo::session_info()`
+- [ ] `renv::snapshot()`
+- [ ] `git add renv.lock R/ report.qmd && git commit -m "feat: add airway analysis and report"`
+- [ ] Create `.github/workflows/render.yml` using the template from this workbook
+- [ ] `git add .github/ && git commit -m "ci: add GitHub Actions render workflow"`
+- [ ] Push to GitHub: `git push -u origin main`
+- [ ] Navigate to the Actions tab on GitHub and confirm the workflow passes
+:::
+
+::: {.callout-tip collapse="true" title="Solution"}
+Step-by-step commands with expected output:
+
+```bash
+# Terminal
+mkdir rnaseq-mini
+cd rnaseq-mini
+git init
+# Initialized empty Git repository in .../rnaseq-mini/.git/
+```
+
+Create `.gitignore` (contents from the bioinformatics exercise above), then:
+
+```bash
+git add .gitignore
+git commit -m "chore: add bioinformatics gitignore"
+```
+
+```r
+# R session
+renv::init(bioc = TRUE)
+# * Initializing project ...
+# * Discovering package dependencies ...
+# * Copying packages into the cache ...
+# * Snapshot written to renv.lock
+
+pak::pkg_install(c("bioc::airway", "ggplot2", "here", "sessioninfo"))
+```
+
+`analysis.R`:
+
+```r
+library(airway)
+library(ggplot2)
+library(here)
+library(SummarizedExperiment)
+
+data(airway)
+counts   <- assay(airway, "counts")
+metadata <- as.data.frame(colData(airway))
+metadata$total_counts <- colSums(counts)
+metadata$sample       <- rownames(metadata)
+
+p <- ggplot(metadata, aes(x = sample, y = total_counts / 1e6, fill = dex)) +
+  geom_col() +
+  labs(title = "Sequencing depth per sample",
+       x = "Sample", y = "Counts (M)", fill = "Treatment") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+dir.create(here("output", "figures"), recursive = TRUE, showWarnings = FALSE)
+ggsave(here("output", "figures", "depth.png"), p, width = 7, height = 4)
+```
+
+`report.qmd` final chunk:
+
+````
+```{r}
+sessioninfo::session_info()
+```
+````
+
+```r
+renv::snapshot()
+```
+
+```bash
+git add renv.lock analysis.R report.qmd output/
+git commit -m "feat: add airway analysis and Quarto report"
+
+git add .github/
+git commit -m "ci: add GitHub Actions render workflow"
+
+git remote add origin https://github.com/YOUR_USERNAME/rnaseq-mini.git
+git push -u origin main
+```
+
+After pushing, go to `github.com/YOUR_USERNAME/rnaseq-mini/actions`. You should see a workflow run in progress. A green checkmark means the report rendered successfully in a clean cloud environment — proof that your project is fully reproducible.
+:::
+
+# Part 3: Course Review and Reflection
+
+## Skills Checklist
+
+Rate your confidence (1 = need review, 5 = confident) on each skill:
+
+```{r}
+#| eval: false
+
+skills <- tibble::tibble(
+  phase = c(rep("Base R", 7), rep("Tidyverse", 8),
+            rep("Quarto", 5), rep("Professional", 7)),
+  skill = c(
+    # Base R
+    "Create and manipulate vectors, lists, data frames",
+    "Subset data with numeric, logical, and name indexing",
+    "Write if/else, for loops, and while loops",
+    "Write functions with default arguments and validation",
+    "Use lapply, sapply, vapply, tapply",
+    "Handle strings with paste, grep, gsub, sprintf",
+    "Create base R plots: scatter, histogram, boxplot, bar",
+    # Tidyverse
+    "Use the pipe |> to chain operations",
+    "filter, select, mutate, summarize, arrange with dplyr",
+    "Reshape data with pivot_longer and pivot_wider",
+    "Import data with readr and readxl",
+    "Manipulate strings with stringr",
+    "Work with dates using lubridate",
+    "Use map functions from purrr",
+    "Build layered ggplot2 visualizations with custom themes",
+    # Quarto
+    "Write Quarto documents with YAML, markdown, and code chunks",
+    "Render to HTML, PDF, and Word",
+    "Create Reveal.js presentations",
+    "Build dashboards with value boxes and layouts",
+    "Publish to Quarto Pub or GitHub Pages",
+    # Professional
+    "Organize projects with here and renv (bioc = TRUE)",
+    "Debug with browser(), traceback(), and Positron tools",
+    "Follow the tidyverse style guide",
+    "Use git switch / git restore for branching and file ops",
+    "Write conventional commit messages",
+    "Snapshot and restore environments with renv",
+    "Automate rendering with GitHub Actions"
+  ),
+  confidence = NA_integer_
+)
+
+# Fill in your confidence ratings:
+# skills$confidence <- c(...)
+```
+
+### Your Turn: Identify Growth Areas
+
+1. Which three skills improved the most during this course?
+2. Which two skills do you want to practice more?
+3. What is one project idea where you could apply these skills?
+
+## Think About It
+
+Reflect on the full course:
+
+- What was the most surprising thing you learned about R?
+- How does R compare to other languages you know for data work?
+- What would you do differently if you started the course over?
+- What is the first real project you want to tackle with R?
+
+## Resources for Continued Learning
+
+**Books (free online):**
+
+- R for Data Science (2e): <https://r4ds.hadley.nz>
+- Advanced R: <https://adv-r.hadley.nz>
+- ggplot2 Book: <https://ggplot2-book.org>
+- Quarto documentation: <https://quarto.org/docs/guide/>
+
+**Bioinformatics R:**
+
+- Bioconductor workflows: <https://bioconductor.org/packages/release/workflows/>
+- DESeq2 vignette: <https://bioconductor.org/packages/DESeq2>
+- Orchestrating Single-Cell Analysis: <https://bioconductor.org/books/release/OSCA/>
+
+**Next steps to explore:**
+
+- Shiny: interactive web applications
+- tidymodels: machine learning in R
+- R packages: build and distribute your own code
+- gganimate: animated visualizations
+- targets: reproducible pipeline management (pairs naturally with `renv`)
+
+**Community:**
+
+- Posit Community Forum: <https://forum.posit.co>
+- R-bloggers: <https://www.r-bloggers.com>
+- Bioconductor Support: <https://support.bioconductor.org>
+
+# Session Synthesis
+
+### Connect the Dots: Complete Project Setup
+
+This exercise ties together Git, project structure, and all course skills. Work through it step by step.
+
+```{bash}
+#| eval: false
+
+# 1. Create and initialize the project
+mkdir course-capstone
+cd course-capstone
+git init
+
+# 2. Create .gitignore
+cat > .gitignore << 'EOF'
+.Rhistory
+.RData
+.Rproj.user/
+renv/library/
+renv/staging/
+*.html
+_site/
+.DS_Store
+EOF
+
+git add .gitignore
+git commit -m "Add .gitignore for R project"
+
+# 3. Create README
+cat > README.md << 'EOF'
+# Course Capstone Project
+
+Analysis of [your dataset] using R.
+
+## Structure
+- `R/` - Analysis scripts
+- `data/` - Raw and processed data
+- `output/` - Figures and tables
+- `report.qmd` - Final report
+
+## Reproduction
+1. Open the .Rproj file in Positron
+2. Run `renv::restore()` to install packages
+3. Render `report.qmd`
+EOF
+
+git add README.md
+git commit -m "Add README with project description and reproduction steps"
+
+# 4. Create directory structure
+mkdir -p R data/raw data/clean output/figures output/tables
+
+# 5. Continue building from here...
+```
+
+```{r}
+#| eval: false
+
+# In R, set up the project:
+library(tidyverse)
+library(here)
+
+# Initialize renv with Bioconductor support
+renv::init(bioc = TRUE)
+
+# Import data
+my_data <- read_csv(here("data", "raw", "my_data.csv"))
+
+# Clean
+clean_data <- my_data |>
+  filter(!is.na(key_variable)) |>
+  mutate(
+    category = case_when(
+      value < 10 ~ "Low",
+      value < 50 ~ "Medium",
+      .default = "High"
+    )
+  )
+
+# Save cleaned version
+write_rds(clean_data, here("data", "clean", "clean_data.rds"))
+
+# Summarize
+summary_table <- clean_data |>
+  summarize(
+    n = n(),
+    mean_val = mean(value),
+    sd_val = sd(value),
+    .by = category
+  )
+
+# Visualize
+p1 <- ggplot(clean_data, aes(x = value, fill = category)) +
+  geom_histogram(bins = 30, color = "white") +
+  labs(title = "Distribution of Values by Category") +
+  theme_minimal()
+
+ggsave(here("output", "figures", "distribution.png"), p1,
+       width = 8, height = 5)
+
+# Snapshot the environment
+renv::snapshot()
+
+# Session info at end of report
+sessioninfo::session_info()
+```
+
+## Key Takeaways
+
+1. Git tracks every change to your project. Commit early, commit often, write clear messages. Use `git switch` for branches and `git restore` for file-level changes.
+2. Branches let you experiment without breaking the main codebase. A clear branch strategy prevents painful conflicts.
+3. A well-structured project with Git, `renv::init(bioc = TRUE)`, `renv::snapshot()`, and a Quarto report is fully reproducible by anyone.
+4. GitHub Actions closes the loop: every push re-renders your report in a clean environment, proving reproducibility continuously.
+5. You now have a complete R toolkit: data wrangling, visualization, reporting, and professional practices.
+
+## Course Complete
+
+You started this course knowing programming but not R. Over 15 sessions, you built skills in:
+
+- Base R fundamentals
+- Tidyverse data wrangling and visualization
+- Quarto for reproducible communication
+- Professional development practices including Git, renv, and CI/CD
+
+Take these skills and apply them to problems that matter to you. The best way to keep learning R is to keep using R.

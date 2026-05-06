@@ -1,0 +1,1784 @@
+﻿---
+title: "Session 14: Professional Practices"
+subtitle: "R Programming Workbook â€” Bioinformatics Edition"
+author: "R Programming Course"
+date: today
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    toc-location: left
+    code-fold: show
+    code-tools: true
+    code-overflow: wrap
+    theme: cosmo
+    self-contained: true
+execute:
+  echo: true
+  warning: false
+  message: false
+---
+
+```{r}
+#| label: setup
+#| include: false
+library(here)
+library(fs)
+library(profvis)
+```
+
+## Learning Objectives
+
+::: {.callout-note title="Learning Objectives"}
+By the end of this session you will be able to:
+
+1. Create and organize bioinformatics R projects with standard directory structure using the `fs` package
+2. Use the `here` package to build portable file paths
+3. Use `renv` to manage project-specific package dependencies, including Bioconductor packages
+4. Orchestrate multi-step bioinformatics pipelines with `targets`
+5. Debug R code with `traceback()`, `browser()`, and Positron breakpoints
+6. Profile code performance with `system.time()` and `profvis`, and optimize with vectorization
+7. Apply the tidyverse style guide for naming, spacing, and formatting
+8. Check code style with `lintr` and auto-format with `styler`
+9. Write clear comments and document functions with `roxygen2`
+:::
+
+## Part 1: Project Organization
+
+### R Projects and Working Directories
+
+An R project is a directory with a `.Rproj` file. Opening the `.Rproj` file sets the working directory to the project root.
+
+```{r}
+# Check your current working directory
+getwd()
+```
+
+When you work inside a project, all relative paths resolve from the project root. This makes your code portable across machines.
+
+### The `here` Package
+
+`here()` builds file paths relative to the project root:
+
+```{r}
+library(here)
+
+# Show the project root
+here()
+
+# Build a path to a gene counts data file
+here("data", "raw", "gene_counts.csv")
+```
+
+`here()` finds the project root by looking for markers like `.Rproj`, `.here`, or `.git`. It works regardless of where the calling script lives in the directory tree.
+
+Compare the approaches:
+
+```{r}
+#| eval: false
+
+# Fragile: depends on working directory
+read.csv("data/raw/gene_counts.csv")
+
+# Fragile: absolute path, breaks on other machines
+read.csv("C:/Users/alice/project/data/raw/gene_counts.csv")
+
+# Robust: works from any script location
+read.csv(here("data", "raw", "gene_counts.csv"))
+```
+
+### Your Turn: Project Structure
+
+:::: {.callout-caution title="Your Turn â€” Project Structure"}
+Design the directory structure for a bioinformatics project that:
+
+- Processes RNA-seq data: raw FASTQ files, alignment, and gene counts
+- Produces cleaned count matrices, summary tables, and visualizations
+- Generates a Quarto report
+
+Write the directory tree and explain what goes in each folder:
+
+```{r}
+#| eval: false
+
+# Fill in your project structure:
+project_structure <- '
+rnaseq-analysis/
+  rnaseq-analysis.Rproj
+  README.md
+  .gitignore
+  _targets.R
+  data/
+    raw/
+      fastq/        # Raw FASTQ files (never modify)
+    processed/
+      counts/       # Gene count matrices from featureCounts/STAR
+  R/
+    functions/      # Reusable R functions (filter, normalize, plot)
+    scripts/        # Numbered analysis scripts
+  output/
+    figures/        # Saved plots (PCA, heatmaps, volcano plots)
+    tables/         # DEG tables, summary statistics
+  docs/
+    report.qmd      # Final Quarto report
+  renv.lock         # Package versions
+'
+cat(project_structure)
+```
+::::
+
+### Project Setup with the `fs` Package
+
+::: {.callout-tip title="Why `fs` instead of base R?"}
+The `fs` package provides a type-safe, cross-platform interface for file system operations. Compared to base R:
+
+- `fs::dir_create()` vs `dir.create()`: `fs` throws an **error** instead of a silent warning when paths are invalid; no need to set `showWarnings = FALSE`.
+- Paths returned by `fs` functions are class `fs_path` â€” they print with colour in the console and compose safely with `fs::path()`.
+- **Unicode-aware**: handles non-ASCII filenames on all platforms.
+- **Works identically on Windows, macOS, and Linux** â€” no backslash vs forward-slash surprises.
+- `fs::dir_create()` accepts a **vector** of paths and creates them all in one call, including all missing parents (`recursive = TRUE` is the default).
+
+In 2026, `fs` is the standard for modern R workflows and is used by `usethis`, `targets`, and most Bioconductor tooling.
+:::
+
+```{r}
+#| eval: false
+
+library(fs)
+
+setup_project <- function(project_name) {
+  # Create all directories in one vectorized call
+  dirs <- fs::path(project_name, c(
+    "data/raw/fastq",
+    "data/processed/counts",
+    "R/functions",
+    "R/scripts",
+    "output/figures",
+    "output/tables",
+    "docs"
+  ))
+  fs::dir_create(dirs)   # recursive = TRUE by default
+
+  # Create placeholder files
+  fs::file_create(fs::path(project_name, c(
+    ".gitignore",
+    "README.md",
+    "_targets.R"
+  )))
+
+  # Write starter content
+  writeLines(
+    paste0("# ", project_name, "\n\nProject description here."),
+    fs::path(project_name, "README.md")
+  )
+
+  writeLines(
+    c(".Rhistory", ".RData", ".Rproj.user/", "renv/library/"),
+    fs::path(project_name, ".gitignore")
+  )
+
+  message("Project '", project_name, "' created at: ",
+          fs::path_abs(project_name))
+  invisible(fs::path_abs(project_name))
+}
+
+# Test it:
+# setup_project("rnaseq-analysis")
+```
+
+:::: {.callout-caution title="Your Turn â€” Bioinformatics Project Skeleton"}
+Use `fs` to create the standard bioinformatics project structure below. Your function should also create an empty `.gitignore`, `README.md`, and `_targets.R` at the project root.
+
+```{r}
+#| eval: false
+
+# Target structure:
+# project-name/
+#   data/{raw,processed}/
+#   R/{functions,scripts}/
+#   output/{figures,tables}/
+#   docs/
+#   .gitignore
+#   README.md
+#   _targets.R
+
+create_bio_skeleton <- function(name) {
+  # YOUR CODE HERE
+  # Hint: pass a character vector to fs::dir_create()
+}
+```
+
+::::
+
+::: {.callout-tip collapse="true" title="Solution"}
+```{r}
+#| eval: false
+
+library(fs)
+
+create_bio_skeleton <- function(name) {
+  # Create all directories in one call
+  fs::dir_create(fs::path(name, c(
+    "data/raw",
+    "data/processed",
+    "R/functions",
+    "R/scripts",
+    "output/figures",
+    "output/tables",
+    "docs"
+  )))
+
+  # Create root-level files
+  fs::file_create(fs::path(name, c(".gitignore", "README.md", "_targets.R")))
+
+  # Seed the README
+  writeLines(
+    c(paste0("# ", name), "", "## Overview", "RNA-seq analysis project."),
+    fs::path(name, "README.md")
+  )
+
+  message("Skeleton created: ", fs::path_abs(name))
+  invisible(fs::path_abs(name))
+}
+
+# create_bio_skeleton("rnaseq-pilot")
+```
+:::
+
+### `renv` for Reproducible Environments
+
+`renv` creates a project-local package library:
+
+```{r}
+#| eval: false
+
+# Initialize renv (do this once per project)
+renv::init()
+
+# Install CRAN packages (goes to project library, not global)
+install.packages("dplyr")
+
+# Install Bioconductor packages through renv
+renv::install("bioc::airway")  # Example Bioconductor dataset package
+
+# After installing or updating packages, snapshot:
+renv::snapshot()
+# Creates/updates renv.lock with exact package versions
+
+# On a new machine (or teammate's machine):
+renv::restore()
+# Installs exact versions from renv.lock
+```
+
+The `renv.lock` file records every package and its version:
+
+```{r}
+#| eval: false
+
+# Example renv.lock content (JSON):
+'{
+  "R": {"Version": "4.4.1"},
+  "Packages": {
+    "dplyr": {
+      "Package": "dplyr",
+      "Version": "1.1.4",
+      "Source": "Repository",
+      "Repository": "CRAN"
+    },
+    "airway": {
+      "Package": "airway",
+      "Version": "1.22.0",
+      "Source": "Bioconductor"
+    }
+  }
+}'
+```
+
+::: {.callout-tip title="Cloud environments for collaborative work"}
+For collaborative work or when your laptop cannot handle the data (large BAM files, high-memory alignment), **Posit Cloud** or **GitHub Codespaces** give you a cloud R environment with `renv` pre-configured. Both support restoring from `renv.lock` automatically. This is especially useful for shared course projects where everyone needs an identical software environment.
+:::
+
+### Your Turn: renv Workflow
+
+:::: {.callout-caution title="Your Turn â€” renv Workflow"}
+Put the following `renv` operations in the correct order for each scenario:
+
+**Scenario 1: Starting a new project**
+
+```{r}
+#| eval: false
+
+# Order these steps (number them 1-4):
+# ___ renv::snapshot()
+# ___ renv::install("bioc::airway")
+# ___ renv::init()
+# ___ git commit renv.lock
+
+# Answer:
+# 1. renv::init()
+# 2. renv::install("bioc::airway")
+# 3. renv::snapshot()
+# 4. git commit renv.lock
+```
+
+**Scenario 2: Joining an existing project**
+
+```{r}
+#| eval: false
+
+# Order these steps (number them 1-3):
+# ___ Open the .Rproj file
+# ___ renv::restore()
+# ___ Clone the Git repository
+
+# Answer:
+# 1. Clone the Git repository
+# 2. Open the .Rproj file
+# 3. renv::restore()
+```
+::::
+
+:::: {.callout-caution title="Your Turn â€” renv with Bioconductor"}
+Walk through the complete `renv` workflow for a Bioconductor package:
+
+1. Run `renv::init()` in a new project.
+2. Install the `airway` package: `renv::install("bioc::airway")`.
+3. Snapshot the environment: `renv::snapshot()`.
+4. Open `renv.lock` and find the `airway` entry â€” what fields does it have?
+5. Simulate a teammate restoring the environment: `renv::restore()`.
+
+**Question:** What would happen if your teammate runs `install.packages("airway")` instead of using `renv::restore()`?
+
+::::
+
+::: {.callout-tip collapse="true" title="Solution"}
+```{r}
+#| eval: false
+
+# 1. Initialize
+renv::init()
+
+# 2. Install from Bioconductor
+renv::install("bioc::airway")
+
+# 3. Snapshot
+renv::snapshot()
+
+# 4. Inspect the lock file
+renv_lock <- jsonlite::fromJSON("renv.lock")
+renv_lock$Packages$airway
+# Returns: Package, Version, Source = "Bioconductor", Repository
+
+# 5. Restore
+renv::restore()
+
+# If the teammate uses install.packages("airway"):
+# - install.packages() cannot find Bioconductor packages on CRAN.
+# - The correct approach is renv::restore(), which reads the Source field
+#   and routes the install to the right repository automatically.
+```
+:::
+
+::: {.callout-warning title="Common Mistake"}
+Forgetting to snapshot after installing a package:
+
+```{r}
+#| eval: false
+
+# You install a package:
+install.packages("scales")
+
+# You forget to snapshot
+# You commit and push
+
+# Your teammate runs renv::restore()
+# scales is NOT installed because it is not in renv.lock
+
+# Fix: always snapshot after installing
+install.packages("scales")
+renv::snapshot()  # Update the lock file
+```
+:::
+
+### Pipeline Orchestration with {targets}
+
+For multi-step analyses where some steps take a long time (alignment, normalization), re-running everything from scratch on every change is wasteful. The `targets` package solves this with a **dependency graph**: it only re-runs the steps whose inputs have changed.
+
+```{r}
+#| eval: false
+
+# _targets.R â€” place this in your project root
+
+library(targets)
+
+# Tell targets which packages every target needs
+tar_option_set(packages = c("dplyr", "readr"))
+
+# Source your custom functions
+tar_source("R/functions/")
+
+# Define the pipeline as a list of tar_target() calls
+list(
+  # Track the raw counts file; re-run downstream if it changes
+  tar_target(counts_file, "data/raw/gene_counts.csv", format = "file"),
+
+  # Read counts into R
+  tar_target(counts, read_csv(counts_file)),
+
+  # Filter low-expressed genes (custom function in R/functions/)
+  tar_target(filtered, filter_expressed(counts, min_cpm = 1)),
+
+  # Compute per-gene summary table
+  tar_target(summary_tbl, summarize_per_gene(filtered))
+)
+```
+
+Run the pipeline and inspect it:
+
+```{r}
+#| eval: false
+
+# Run all outdated targets (skips up-to-date ones)
+targets::tar_make()
+
+# Visualise the dependency graph in the browser
+targets::tar_visnetwork()
+
+# Load a specific target result into your session
+targets::tar_load(filtered)
+```
+
+::: {.callout-important title="Why targets matters for bioinformatics"}
+Alignment and counting can take hours per sample. If you change only the filtering threshold in `filter_expressed()`, `targets` detects that `counts_file` and `counts` are unchanged and **only re-runs `filtered` and `summary_tbl`**. This is the standard approach for reproducible, efficient bioinformatics pipelines. Widely-used Bioconductor workflows (e.g., `rnaseqGene`) are being ported to `targets`-based structures for exactly this reason.
+:::
+
+:::: {.callout-caution title="Your Turn â€” targets Mini-Pipeline"}
+Convert the following 3-step analysis script into a `_targets.R` pipeline. Then answer: which targets re-run if you change the `min_cpm` threshold from 1 to 2?
+
+```{r}
+#| eval: false
+
+# Current linear script (to convert):
+counts     <- readr::read_csv("data/raw/gene_counts.csv")
+filtered   <- filter_expressed(counts, min_cpm = 1)
+summary_tbl <- summarize_per_gene(filtered)
+```
+
+::::
+
+::: {.callout-tip collapse="true" title="Solution"}
+```{r}
+#| eval: false
+
+# _targets.R
+library(targets)
+tar_option_set(packages = c("dplyr", "readr"))
+tar_source("R/functions/")
+
+list(
+  tar_target(counts_file, "data/raw/gene_counts.csv", format = "file"),
+  tar_target(counts,       read_csv(counts_file)),
+  tar_target(filtered,     filter_expressed(counts, min_cpm = 1)),
+  tar_target(summary_tbl,  summarize_per_gene(filtered))
+)
+
+# If you change min_cpm = 1 to min_cpm = 2:
+# - counts_file: up to date (file unchanged)
+# - counts:      up to date (file unchanged)
+# - filtered:    OUTDATED â€” the function call changed
+# - summary_tbl: OUTDATED â€” its input (filtered) changed
+# targets re-runs only filtered and summary_tbl.
+```
+:::
+
+### README Template
+
+Every project needs a README:
+
+```{r}
+#| eval: false
+
+readme_template <- '
+# Project Name
+
+## Overview
+One or two sentences describing the project and the biological question.
+
+## Requirements
+- R 4.4+
+- Run `renv::restore()` to install dependencies
+
+## Directory Structure
+- `data/raw/fastq/`       - Raw FASTQ files (do not modify)
+- `data/processed/counts/` - Gene count matrices
+- `R/functions/`           - Reusable R functions
+- `R/scripts/`             - Numbered analysis scripts
+- `output/figures/`        - Saved plots
+- `output/tables/`         - Summary tables
+- `docs/`                  - Quarto reports
+
+## Usage
+1. Open `project-name.Rproj` in Positron
+2. Run `renv::restore()` to install packages
+3. Run `targets::tar_make()` to execute the full pipeline
+4. Render `docs/report.qmd` for the final report
+
+## Data Sources
+Describe where data comes from and any access requirements.
+'
+cat(readme_template)
+```
+
+### Your Turn: Write a README
+
+:::: {.callout-caution title="Your Turn â€” Write a README"}
+Write a README for an RNA-seq project comparing gene expression in liver vs. kidney tissue. Include all sections from the template above, customized for this project.
+
+```{r}
+#| eval: false
+
+my_readme <- '
+# Your project README here
+'
+cat(my_readme)
+```
+::::
+
+### .gitignore for R Projects
+
+```{r}
+#| eval: false
+
+gitignore_content <- '
+# R specific
+.Rhistory
+.RData
+.Rproj.user
+
+# renv (keep lock file, ignore library)
+renv/library/
+renv/staging/
+renv/local/
+
+# Generated output (reproducible from code)
+output/figures/*.png
+output/tables/*.csv
+_site/
+
+# Large bioinformatics data files
+data/raw/fastq/*.fastq.gz
+data/raw/fastq/*.bam
+
+# OS files
+.DS_Store
+Thumbs.db
+'
+cat(gitignore_content)
+```
+
+Key decisions: commit `renv.lock` (so others can restore packages). Do not commit `renv/library/` (too large, platform-specific). Do not commit large FASTQ or BAM files (share via institutional storage or SRA accession number).
+
+::: {.callout-tip title="Challenge â€” Complete Project Setup with `fs`"}
+Create a complete bioinformatics project setup function that:
+
+1. Creates the directory structure using `fs::dir_create()`
+2. Writes a README.md with `fs::path()`
+3. Writes a .gitignore
+4. Creates a starter `_targets.R`
+
+```{r}
+#| eval: false
+
+library(fs)
+
+setup_project <- function(project_name) {
+  # Create directories â€” fs::dir_create() is recursive by default
+  dirs <- fs::path(project_name, c(
+    "data/raw/fastq",
+    "data/processed/counts",
+    "R/functions",
+    "R/scripts",
+    "output/figures",
+    "output/tables",
+    "docs"
+  ))
+  fs::dir_create(dirs)
+
+  # Create and populate README
+  writeLines(
+    paste0("# ", project_name, "\n\nProject description here."),
+    fs::path(project_name, "README.md")
+  )
+
+  # Create and populate .gitignore
+  writeLines(
+    c(".Rhistory", ".RData", ".Rproj.user/", "renv/library/",
+      "data/raw/fastq/*.fastq.gz"),
+    fs::path(project_name, ".gitignore")
+  )
+
+  # Create starter _targets.R
+  writeLines(
+    c('library(targets)',
+      'tar_option_set(packages = c("dplyr", "readr"))',
+      'tar_source("R/functions/")',
+      'list(',
+      '  tar_target(counts_file, "data/raw/gene_counts.csv", format = "file"),',
+      '  tar_target(counts, readr::read_csv(counts_file))',
+      ')'),
+    fs::path(project_name, "_targets.R")
+  )
+
+  message("Project '", project_name, "' created.")
+  invisible(fs::path_abs(project_name))
+}
+
+# Test it:
+# setup_project("rnaseq-analysis")
+```
+:::
+
+## Part 2: Debugging and Profiling
+
+### Reading Error Messages
+
+Error messages follow a pattern: what went wrong and where.
+
+```{r}
+#| error: true
+
+# Error 1: object not found
+mean(nonexistent_variable)
+```
+
+```{r}
+#| error: true
+
+# Error 2: wrong argument type
+log("text")
+```
+
+```{r}
+#| error: true
+
+# Error 3: subscript out of bounds
+x <- c(1, 2, 3)
+x[5] <- 10  # This works (extends vector)
+x[[5]]      # This fails if x has only 4 elements now
+```
+
+Read the error message first. It often tells you exactly what to fix.
+
+### `traceback()` for Call Stacks
+
+When errors occur inside nested function calls:
+
+```{r}
+#| error: true
+
+inner <- function(x) {
+  log(x)  # Fails if x is character
+}
+
+middle <- function(x) {
+  inner(paste(x))  # Converts to character
+}
+
+outer <- function(x) {
+  middle(x)
+}
+
+outer(5)
+```
+
+After an error, `traceback()` shows which function called which:
+
+```{r}
+#| eval: false
+
+traceback()
+# 3: inner(paste(x))
+# 2: middle(x)
+# 1: outer(5)
+# Read bottom to top: outer called middle called inner
+```
+
+### `browser()` for Interactive Debugging
+
+Insert `browser()` to pause execution and inspect variables:
+
+```{r}
+#| eval: false
+
+filter_expressed <- function(counts, min_cpm = 1) {
+  browser()  # Execution pauses here
+  # Compute CPM: divide each count by column sum * 1e6
+  cpm_mat <- sweep(counts, 2, colSums(counts), "/") * 1e6
+  # Keep genes where mean CPM across samples exceeds threshold
+  keep <- rowMeans(cpm_mat) > min_cpm
+  counts[keep, ]
+}
+
+# Simulated count matrix (rows = genes, columns = samples)
+set.seed(1)
+sim_counts <- matrix(rpois(500, lambda = 50), nrow = 50,
+                     dimnames = list(paste0("gene_", 1:50),
+                                     paste0("sample_", 1:10)))
+
+# When this runs, you drop into debug mode:
+filter_expressed(sim_counts, min_cpm = 5)
+
+# In debug mode, you can:
+# Type variable names to see their values: cpm_mat, keep
+# n  - execute next line
+# c  - continue (run to end or next browser())
+# Q  - quit debugging
+# ls() - list objects in current scope
+```
+
+### Your Turn: Find the Bug in `apply_qc_filter()`
+
+:::: {.callout-caution title="Your Turn â€” Find the Bug"}
+This function is supposed to return samples with RIN score **at or above** the threshold, but it silently drops borderline samples. Find and fix the bug using `browser()`.
+
+```{r}
+samples_metadata <- data.frame(
+  sample_id = paste0("S", 1:6),
+  tissue    = c("liver", "kidney", "liver", "kidney", "liver", "kidney"),
+  condition = c("control", "control", "treated", "treated", "control", "treated"),
+  rin_score = c(8.5, 7.9, 8.0, 9.1, 6.5, 8.0)
+)
+
+# Buggy function â€” off-by-one in the comparison operator:
+apply_qc_filter <- function(samples, rin_threshold = 8.0) {
+  samples[samples$rin_score > rin_threshold, ]  # Bug: should be >=
+}
+
+# This drops samples with rin_score == 8.0 (S3 and S6)
+apply_qc_filter(samples_metadata, rin_threshold = 8.0)
+```
+
+Use `browser()` to step through. What do you see in `samples$rin_score > 8.0` for S3?
+
+Fix the function:
+
+```{r}
+#| code-fold: true
+
+# Fixed version:
+flag_high_quality <- function(samples, rin_threshold = 8.0) {
+  threshold <- as.numeric(rin_threshold)
+  if (is.na(threshold)) {
+    stop("rin_threshold must be numeric, got: ", rin_threshold)
+  }
+  samples[samples$rin_score >= threshold, ]  # >= keeps borderline samples
+}
+
+flag_high_quality(samples_metadata, rin_threshold = 8.0)
+# Now includes S3 and S6 (rin_score == 8.0)
+```
+::::
+
+### Positron Debugger
+
+Positron provides a visual debugger:
+
+1. **Set breakpoint**: Click the line number gutter (red dot appears)
+2. **Source file**: `Ctrl+Shift+Enter` to source with debug support
+3. **Call function**: Execution pauses at breakpoint
+4. **Debug toolbar**: Step Over (F10), Step Into (F11), Continue (F5)
+5. **Variables pane**: Shows all objects in current scope
+
+Conditional breakpoints: right-click a breakpoint, enter a condition like `i == 42`. The debugger only pauses when the condition is true.
+
+:::: {.callout-caution title="Your Turn â€” Debugging in Positron"}
+The function below processes samples per tissue group. Set a breakpoint on the `tissue_subset <- ...` line. Use the Variables panel to inspect `tissue_subset` when the loop reaches `tissue == "kidney"`.
+
+```{r}
+#| eval: false
+
+process_by_tissue <- function(samples) {
+  tissues <- unique(samples$tissue)
+  results <- lapply(tissues, function(tissue) {
+    tissue_subset <- samples[samples$tissue == tissue, ]  # Set breakpoint here
+    data.frame(
+      tissue       = tissue,
+      n_samples    = nrow(tissue_subset),
+      mean_rin     = mean(tissue_subset$rin_score),
+      pct_hq       = mean(tissue_subset$rin_score >= 8.0) * 100
+    )
+  })
+  do.call(rbind, results)
+}
+
+process_by_tissue(samples_metadata)
+```
+
+::::
+
+::: {.callout-tip collapse="true" title="Solution"}
+Steps:
+
+1. Open the script containing `process_by_tissue` in Positron.
+2. Click the gutter to the left of the `tissue_subset <- ...` line â€” a red dot appears.
+3. Source the file (`Ctrl+Shift+Enter`) to register the function.
+4. Call `process_by_tissue(samples_metadata)` in the console.
+5. Execution pauses at the breakpoint on the first iteration (`tissue == "liver"`).
+6. In the **Variables** panel (top-right in the default layout), expand `tissue_subset`. You should see 3 rows (S1, S5, and the control liver sample).
+7. Press **Continue** (F5) to advance to the next iteration.
+8. On the second pause, `tissue_subset` shows 3 kidney rows. Verify `mean_rin` would be `(7.9 + 9.1 + 8.0) / 3 = 8.33`.
+
+The Variables panel updates live with each step â€” no `print()` statements needed.
+:::
+
+### Your Turn: Debugging Practice
+
+:::: {.callout-caution title="Your Turn â€” Weighted Mean Bugs"}
+This function is supposed to compute the weighted mean, but has multiple bugs. Use `browser()` or Positron breakpoints to find and fix each one.
+
+```{r}
+#| error: true
+
+# Buggy function (3 bugs):
+weighted_avg <- function(values, weights) {
+  # Bug 1: no length check
+  # Bug 2: no NA handling
+  # Bug 3: division issue
+  total <- sum(values * weights)
+  n <- length(values)
+  total / n  # Should divide by sum of weights, not count
+}
+
+# Test cases:
+weighted_avg(c(80, 90, 70), c(0.3, 0.5, 0.2))  # Should be 81
+weighted_avg(c(80, NA, 70), c(0.3, 0.5, 0.2))   # Should handle NA
+weighted_avg(c(80, 90), c(0.3, 0.5, 0.2))        # Should error: different lengths
+```
+
+Fix all three bugs:
+
+```{r}
+#| code-fold: true
+
+weighted_avg_fixed <- function(values, weights) {
+  # Bug 1 fix: check lengths match
+  if (length(values) != length(weights)) {
+    stop("values and weights must have same length")
+  }
+
+  # Bug 2 fix: handle NAs
+  complete <- !is.na(values) & !is.na(weights)
+  values  <- values[complete]
+  weights <- weights[complete]
+
+  # Bug 3 fix: divide by sum of weights
+  sum(values * weights) / sum(weights)
+}
+
+weighted_avg_fixed(c(80, 90, 70), c(0.3, 0.5, 0.2))
+weighted_avg_fixed(c(80, NA, 70), c(0.3, 0.5, 0.2))
+```
+::::
+
+### Performance Timing
+
+```{r}
+# Time a single expression:
+system.time({
+  result <- sapply(1:100000, \(x) sqrt(x))
+})
+```
+
+```{r}
+# Compare approaches:
+system.time({
+  # Approach 1: loop with growing vector
+  out <- c()
+  for (i in 1:50000) out <- c(out, sqrt(i))
+})
+
+system.time({
+  # Approach 2: pre-allocated vector
+  out <- numeric(50000)
+  for (i in 1:50000) out[i] <- sqrt(i)
+})
+
+system.time({
+  # Approach 3: vectorized
+  out <- sqrt(1:50000)
+})
+```
+
+Approach 3 (vectorized) is fastest. Approach 1 (growing vector) is slowest because R copies the entire vector on each append.
+
+### Your Turn: Performance Comparison
+
+:::: {.callout-caution title="Your Turn â€” Row Means Timing"}
+Compare three ways to compute row means for a matrix. Time each approach.
+
+```{r}
+# Create test data
+set.seed(42)
+mat <- matrix(rnorm(100000), nrow = 1000, ncol = 100)
+
+# Approach 1: for loop
+system.time({
+  means1 <- numeric(nrow(mat))
+  for (i in 1:nrow(mat)) {
+    means1[i] <- mean(mat[i, ])
+  }
+})
+
+# Approach 2: apply
+system.time({
+  means2 <- apply(mat, 1, mean)
+})
+
+# Approach 3: rowMeans (built-in vectorized)
+system.time({
+  means3 <- rowMeans(mat)
+})
+
+# Verify all give same result:
+all.equal(means1, means2)
+all.equal(means2, means3)
+```
+::::
+
+### Profiling with `profvis`
+
+`system.time()` tells you *how long* something takes; `profvis` tells you *where* the time is spent inside a function â€” which calls dominate the flame graph.
+
+::: {.callout-note title="Reading a profvis flame graph"}
+In the flame graph, the x-axis is cumulative time. Wide bars = slow calls. The bottom layer is the outermost function; each layer above is a nested call. Look for the **widest bar near the top** â€” that is your bottleneck.
+:::
+
+Below we profile a realistic bioinformatics scenario: reading a gene counts file, filtering low-expressed genes, and computing per-gene mean expression. We compare a slow `for`-loop version against a vectorized `rowMeans()` version.
+
+```{r}
+#| eval: false
+
+library(profvis)
+
+# ------------------------------------------------------------------
+# Simulate a gene counts matrix (rows = genes, columns = samples)
+# ------------------------------------------------------------------
+set.seed(42)
+n_genes   <- 5000
+n_samples <- 20
+sim_counts <- matrix(
+  rpois(n_genes * n_samples, lambda = 100),
+  nrow     = n_genes,
+  dimnames = list(
+    paste0("ENSG", sprintf("%05d", seq_len(n_genes))),
+    paste0("sample_", seq_len(n_samples))
+  )
+)
+
+# ------------------------------------------------------------------
+# Slow version: for-loop over every gene
+# ------------------------------------------------------------------
+compute_gene_means_loop <- function(counts) {
+  gene_means <- numeric(nrow(counts))
+  for (i in seq_len(nrow(counts))) {
+    gene_means[i] <- mean(counts[i, ])  # re-indexes each row individually
+  }
+  names(gene_means) <- rownames(counts)
+  gene_means
+}
+
+# ------------------------------------------------------------------
+# Fast version: vectorized rowMeans()
+# ------------------------------------------------------------------
+compute_gene_means_vec <- function(counts) {
+  rowMeans(counts)  # one BLAS call across all rows
+}
+
+# ------------------------------------------------------------------
+# Filter function used by both versions
+# ------------------------------------------------------------------
+filter_expressed <- function(counts, min_cpm = 1) {
+  lib_sizes <- colSums(counts)                          # total counts per sample
+  cpm_mat   <- sweep(counts, 2, lib_sizes, "/") * 1e6  # counts per million
+  keep      <- rowMeans(cpm_mat) > min_cpm
+  counts[keep, , drop = FALSE]
+}
+
+# ------------------------------------------------------------------
+# Profile the slow pipeline
+# ------------------------------------------------------------------
+profvis({
+  filtered_slow  <- filter_expressed(sim_counts, min_cpm = 1)
+  gene_means_slow <- compute_gene_means_loop(filtered_slow)
+})
+
+# ------------------------------------------------------------------
+# Profile the fast pipeline â€” run AFTER examining the flame graph above
+# ------------------------------------------------------------------
+profvis({
+  filtered_fast  <- filter_expressed(sim_counts, min_cpm = 1)
+  gene_means_fast <- compute_gene_means_vec(filtered_fast)
+})
+
+# ------------------------------------------------------------------
+# Verify identical results
+# ------------------------------------------------------------------
+all.equal(gene_means_slow, gene_means_fast)  # TRUE
+
+# ------------------------------------------------------------------
+# Timing comparison
+# ------------------------------------------------------------------
+system.time(compute_gene_means_loop(sim_counts))  # seconds
+system.time(compute_gene_means_vec(sim_counts))   # milliseconds
+```
+
+**What to look for in the flame graph:**
+
+- In the **slow** profile, `compute_gene_means_loop` occupies most of the x-axis width. Inside it, repeated calls to `mean()` and index operations `[i, ]` each appear as thin stacked bars â€” but there are 5,000 of them. The `filter_expressed` call is a thin sliver.
+- In the **fast** profile, `compute_gene_means_vec` barely registers. The call is one wide bar with a single `rowMeans` call; the bulk of time shifts into `filter_expressed`'s `sweep()` call, which is already vectorized.
+- **Interpretation**: the loop is the bottleneck. Replacing it with `rowMeans()` moves the bottleneck to I/O and CPM calculation â€” both of which are already fast.
+
+### Your Turn: Profile and Optimize
+
+:::: {.callout-caution title="Your Turn â€” Profile and Optimize"}
+The function below computes per-gene mean expression using a `for` loop.
+
+1. Run `profvis({ slow_means <- gene_mean_loop(sim_counts) })` and note which call takes the most time.
+2. Rewrite using `rowMeans()`.
+3. Compare timings with `system.time()`.
+
+```{r}
+#| eval: false
+
+set.seed(99)
+sim_counts <- matrix(rpois(2000 * 30, lambda = 80), nrow = 2000,
+                     dimnames = list(paste0("gene_", 1:2000),
+                                     paste0("s", 1:30)))
+
+gene_mean_loop <- function(counts) {
+  result <- numeric(nrow(counts))
+  for (i in seq_len(nrow(counts))) {
+    result[i] <- mean(counts[i, ])
+  }
+  result
+}
+
+# YOUR CODE: profile, then write gene_mean_fast() using rowMeans()
+```
+
+::::
+
+::: {.callout-tip collapse="true" title="Solution"}
+```{r}
+#| eval: false
+
+library(profvis)
+
+# Profile the slow version
+profvis({
+  slow_out <- gene_mean_loop(sim_counts)
+})
+# Flame graph: gene_mean_loop is the widest bar.
+# Inside it, the loop body (mean + indexing) repeats 2000 times.
+
+# Fast version
+gene_mean_fast <- function(counts) {
+  rowMeans(counts)
+}
+
+# Timing comparison
+system.time(gene_mean_loop(sim_counts))  # ~0.05â€“0.3 s
+system.time(gene_mean_fast(sim_counts)) # <0.002 s
+
+# Verify results match
+all.equal(gene_mean_loop(sim_counts), gene_mean_fast(sim_counts))
+```
+:::
+
+::: {.callout-warning title="Common Mistake"}
+Growing vectors inside loops:
+
+```{r}
+#| eval: false
+
+# Slow: copies entire vector on each iteration
+results <- c()
+for (i in 1:10000) {
+  results <- c(results, compute_something(i))
+}
+
+# Fast: pre-allocate, then fill
+results <- numeric(10000)
+for (i in 1:10000) {
+  results[i] <- compute_something(i)
+}
+
+# Fastest: vectorize if possible
+results <- compute_something(1:10000)
+```
+
+R must allocate new memory and copy all existing elements each time you append with `c()`. Pre-allocation avoids this.
+:::
+
+## Part 3: Code Style
+
+### The Tidyverse Style Guide
+
+The standard R style reference: <https://style.tidyverse.org/>
+
+```{r}
+#| eval: false
+
+# Naming: snake_case for everything
+day_one          # variable
+filter_expressed # function (verb phrase)
+is_valid         # logical function (predicate)
+
+# Spacing: around operators and after commas
+x <- 5
+y <- x + 1
+z <- c(1, 2, 3)
+mtcars[mtcars$cyl == 4, ]
+mean(x, na.rm = TRUE)
+
+# Line length: 80 characters max
+# Indentation: 2 spaces
+# Assignment: <- (not =)
+```
+
+### Native Pipe vs `%>%`
+
+::: {.callout-note title="Native Pipe `|>` vs magrittr `%>%`"}
+Since R 4.1, the **native pipe** `|>` is built into base R â€” no package required.
+
+**Key differences from `magrittr`'s `%>%`:**
+
+| Feature | `\|>` (native) | `%>%` (magrittr) |
+|---------|--------------|----------------|
+| Requires package | No | Yes (`magrittr` / `dplyr`) |
+| Speed | Faster â€” zero overhead | Small overhead per call |
+| Placeholder | `_` (R 4.2+, named arg only) | `.` (anywhere) |
+| Lambda shorthand | `\(x) x + 1` | `~ .x + 1` |
+
+**In 2026, prefer `|>` for all new code.** You will still see `%>%` in older codebases, tutorials, and Bioconductor vignettes â€” both work and can be mixed within a project if needed.
+
+Example with placeholder:
+```r
+# Native pipe: placeholder must be used as a named argument
+mtcars |> lm(mpg ~ cyl, data = _)
+
+# magrittr: . can go anywhere
+mtcars %>% lm(mpg ~ cyl, data = .)
+```
+:::
+
+### Your Turn: Fix the Style
+
+:::: {.callout-caution title="Your Turn â€” Style Cleanup"}
+The script below has mixed `=`/`<-`, inconsistent spacing, `dplyr::filter` mixed with `subset()`, and lines over 100 characters. Run `styler::style_text()` on it, then fix the remaining issues that `styler` cannot auto-correct.
+
+```{r}
+#| eval: false
+
+# Ugly script â€” fix it:
+Process_Counts<-function(counts,threshold=1,RemoveZero=T){
+x=colSums(counts);cpm=sweep(counts,2,x,"/")*1e6
+keep=subset(as.data.frame(rowMeans(cpm)),rowMeans(cpm)>threshold)
+if(RemoveZero==TRUE){counts=counts[rowSums(counts)>0,]}
+return(counts[rownames(keep),])}
+
+# Run styler on a string version:
+styler::style_text('Process_Counts<-function(counts,threshold=1,RemoveZero=T){x=colSums(counts)}')
+```
+
+::::
+
+::: {.callout-tip collapse="true" title="Solution"}
+```{r}
+#| eval: false
+
+library(styler)
+library(lintr)
+
+# First: auto-format with styler (fixes spacing, <- vs =, indentation)
+styler::style_text('
+Process_Counts<-function(counts,threshold=1,RemoveZero=T){
+x=colSums(counts);cpm=sweep(counts,2,x,"/")*1e6
+keep=subset(as.data.frame(rowMeans(cpm)),rowMeans(cpm)>threshold)
+if(RemoveZero==TRUE){counts=counts[rowSums(counts)>0,]}
+return(counts[rownames(keep),])}
+')
+
+# Then: apply lintr to find remaining issues
+# e.g. T instead of TRUE, PascalCase name, subset() vs dplyr::filter()
+
+# Fully corrected version:
+filter_expressed <- function(counts, min_cpm = 1, remove_zero = TRUE) {
+  if (remove_zero) {
+    counts <- counts[rowSums(counts) > 0, ]
+  }
+
+  lib_sizes <- colSums(counts)
+  cpm_mat   <- sweep(counts, 2, lib_sizes, "/") * 1e6
+  keep      <- rowMeans(cpm_mat) > min_cpm
+
+  counts[keep, , drop = FALSE]
+}
+```
+:::
+
+### Your Turn: Lint and Style
+
+:::: {.callout-caution title="Your Turn â€” Lint and Style"}
+Identify all style violations in this code block. Then write the corrected version.
+
+```{r}
+#| eval: false
+
+# Find all violations:
+Process_Data <- function(x,threshold=0.5,RemoveNA=T){
+  if(RemoveNA==TRUE){x=x[!is.na(x)]}
+  x_scaled = (x-min(x))/(max(x)-min(x))
+  result = x_scaled[x_scaled>threshold]
+  return(result)
+}
+```
+
+Violations to find:
+
+1. Function name uses PascalCase (should be snake_case)
+2. Parameter `RemoveNA` uses PascalCase
+3. `T` instead of `TRUE`
+4. No spaces around `=`, `-`, `/`, `>`
+5. Using `=` for assignment instead of `<-`
+6. No spaces after commas
+7. No space after `if`
+8. Everything crammed onto minimal lines
+
+```{r}
+#| code-fold: true
+
+# Corrected:
+process_data <- function(x, threshold = 0.5, remove_na = TRUE) {
+  if (remove_na) {
+    x <- x[!is.na(x)]
+  }
+
+  x_scaled <- (x - min(x)) / (max(x) - min(x))
+  result <- x_scaled[x_scaled > threshold]
+
+  result
+}
+
+process_data(c(1, 5, 3, NA, 8, 2), threshold = 0.4)
+```
+::::
+
+### `lintr`: Finding Style Problems
+
+```{r}
+#| eval: false
+
+library(lintr)
+
+# Check a single file:
+lint("R/analysis.R")
+
+# Check all R files in a directory:
+lint_dir("R/")
+
+# Check a string of code:
+lint_text("x<-1+2")
+# Returns:
+# Line 1, Column 2: Use <-, not =, for assignment.
+# Line 1, Column 2: Put spaces around all infix operators.
+```
+
+`lintr` integrates with Positron to show warnings inline as you type.
+
+### `styler`: Auto-formatting
+
+```{r}
+#| eval: false
+
+library(styler)
+
+# Format a file:
+style_file("R/messy_code.R")
+
+# Format all files in a directory:
+style_dir("R/")
+
+# Format a string:
+style_text("x<-1+2\nif(x>2){print('hi')}")
+# Returns properly formatted code
+```
+
+`styler` fixes spacing, indentation, and line breaks automatically. Use it before committing code.
+
+### Commenting Best Practices
+
+```{r}
+#| eval: false
+
+# BAD: narrates the code (the code already says this)
+# Calculate the mean of rin_score
+mean_rin <- mean(samples_metadata$rin_score)
+
+# GOOD: explains a decision
+# Using median instead of mean because RIN score distribution
+# is left-skewed for low-quality samples (see QC report, Fig 2)
+center <- median(samples_metadata$rin_score)
+
+# BAD: outdated comment that contradicts code
+# Remove rows with missing values
+clean <- samples_metadata[samples_metadata$rin_score > 0, ]  # Filters by score
+
+# GOOD: section headers for navigation
+# Load and validate sample metadata ----
+metadata <- readr::read_tsv(here("data", "raw", "samples_metadata.tsv"))
+stopifnot(nrow(metadata) > 0)
+```
+
+### Your Turn: Improve Comments
+
+:::: {.callout-caution title="Your Turn â€” Improve Comments"}
+Rewrite the comments in this code. Remove unnecessary comments, add comments that explain decisions, and add section headers.
+
+```{r}
+#| eval: false
+
+# Original (bad comments):
+library(dplyr)  # load dplyr
+
+# read the data
+data <- readr::read_tsv("samples_metadata.tsv")
+
+# filter to liver
+liver <- data |> filter(tissue == "liver")
+
+# calculate mean
+avg_rin <- mean(liver$rin_score, na.rm = TRUE)
+
+# multiply by 0.9
+projected <- avg_rin * 0.9
+
+# print result
+print(projected)
+```
+
+Write the improved version:
+
+```{r}
+#| code-fold: true
+#| eval: false
+
+# Setup ----
+library(dplyr)
+library(here)
+library(readr)
+
+# Import sample metadata ----
+metadata <- read_tsv(here("data", "raw", "samples_metadata.tsv"))
+
+# Liver tissue QIN projection ----
+# Focus on liver samples because they show least batch effect (QC report, p.4)
+liver <- metadata |> filter(tissue == "liver")
+avg_rin <- mean(liver$rin_score, na.rm = TRUE)
+
+# Apply 10% degradation correction based on storage time analysis
+# (see methods in docs/report.qmd, section 2.3)
+corrected_rin <- avg_rin * 0.9
+corrected_rin
+```
+::::
+
+### roxygen2 Documentation
+
+Document functions with standardized comments:
+
+```{r}
+#' Filter a gene count matrix to remove low-expressed genes
+#'
+#' Computes counts per million (CPM) for each sample, then retains only
+#' genes whose mean CPM across all samples exceeds \code{min_cpm}.
+#'
+#' @param counts A numeric matrix of raw read counts.
+#'   Rows are genes (with rownames as gene IDs), columns are samples.
+#' @param min_cpm Numeric. Minimum mean CPM to keep a gene. Default \code{1}.
+#' @param min_samples Integer. Minimum number of samples that must exceed
+#'   \code{min_cpm} (alternative filtering strategy). Default \code{3}.
+#' @return A matrix with the same structure as \code{counts} but with
+#'   low-expressed gene rows removed.
+#' @examples
+#' set.seed(1)
+#' counts <- matrix(rpois(500, 50), nrow = 50,
+#'                  dimnames = list(paste0("gene_", 1:50),
+#'                                  paste0("s", 1:10)))
+#' filter_expressed(counts, min_cpm = 1)
+#' @export
+filter_expressed <- function(counts, min_cpm = 1, min_samples = 3) {
+  lib_sizes <- colSums(counts)
+  cpm_mat   <- sweep(counts, 2, lib_sizes, "/") * 1e6
+  keep      <- rowMeans(cpm_mat) > min_cpm
+  counts[keep, , drop = FALSE]
+}
+
+# Demonstrate the function:
+set.seed(1)
+sim <- matrix(rpois(500, 50), nrow = 50,
+              dimnames = list(paste0("gene_", 1:50), paste0("s", 1:10)))
+dim(filter_expressed(sim, min_cpm = 1))
+```
+
+:::: {.callout-caution title="Your Turn â€” Document with roxygen2"}
+Write full roxygen2 documentation for `filter_expressed(counts, min_cpm = 1, min_samples = 3)`. Include: title, one-paragraph description, `@param` for each argument, `@return`, `@examples`, and `@export`. After writing it, check what `?filter_expressed` would show.
+
+```{r}
+#| eval: false
+
+# Write your documentation here:
+#' <YOUR TITLE>
+#'
+#' <YOUR DESCRIPTION>
+#'
+#' @param counts ...
+#' @param min_cpm ...
+#' @param min_samples ...
+#' @return ...
+#' @examples
+#' ...
+#' @export
+filter_expressed <- function(counts, min_cpm = 1, min_samples = 3) {
+  lib_sizes <- colSums(counts)
+  cpm_mat   <- sweep(counts, 2, lib_sizes, "/") * 1e6
+  keep      <- rowMeans(cpm_mat) > min_cpm
+  counts[keep, , drop = FALSE]
+}
+```
+
+::::
+
+::: {.callout-tip collapse="true" title="Solution"}
+```{r}
+#' Filter a gene count matrix to remove low-expressed genes
+#'
+#' Computes counts per million (CPM) normalised to each sample library size,
+#' then retains only genes whose mean CPM across all samples exceeds
+#' \code{min_cpm}. This is a standard pre-filtering step before differential
+#' expression analysis (Robinson & Oshlack 2010).
+#'
+#' @param counts A numeric matrix of raw integer read counts.
+#'   Rows are genes (rownames should be Ensembl IDs or gene symbols),
+#'   columns are samples (colnames should be sample IDs).
+#' @param min_cpm Numeric scalar. Genes with mean CPM strictly greater than
+#'   this value are retained. Default \code{1}.
+#' @param min_samples Integer scalar. Reserved for future use: minimum number
+#'   of samples that must exceed \code{min_cpm} individually (alternative
+#'   filtering strategy). Default \code{3}.
+#' @return A numeric matrix with the same column structure as \code{counts}
+#'   but with low-expressed gene rows removed. Row and column names are
+#'   preserved.
+#' @examples
+#' set.seed(42)
+#' counts <- matrix(rpois(500, 50), nrow = 50,
+#'                  dimnames = list(paste0("ENSG", 1:50),
+#'                                  paste0("sample_", 1:10)))
+#' filtered <- filter_expressed(counts, min_cpm = 1)
+#' nrow(filtered)  # fewer than 50
+#' @export
+filter_expressed <- function(counts, min_cpm = 1, min_samples = 3) {
+  lib_sizes <- colSums(counts)
+  cpm_mat   <- sweep(counts, 2, lib_sizes, "/") * 1e6
+  keep      <- rowMeans(cpm_mat) > min_cpm
+  counts[keep, , drop = FALSE]
+}
+```
+:::
+
+::: {.callout-warning title="Common Mistake"}
+Using `T` and `F` instead of `TRUE` and `FALSE`:
+
+```{r}
+# T and F are just variables that happen to be TRUE and FALSE:
+T
+F
+
+# But they can be overwritten:
+T <- 42
+T  # Now T is 42, not TRUE
+
+# TRUE and FALSE are reserved words and cannot be overwritten:
+# TRUE <- 42  # Error: invalid (do_set) left-hand side to assignment
+
+# Always use TRUE and FALSE, never T and F
+rm(T)  # Clean up
+```
+:::
+
+### Your Turn: `fs` Path Manipulation
+
+:::: {.callout-caution title="Your Turn â€” `fs` Path Manipulation"}
+You have a vector of 100 FASTQ filenames following the naming convention `sample_001_R1.fastq.gz`. Use `fs::path_file()`, `fs::path_ext_remove()`, and `stringr::str_extract()` to build a tibble with columns `sample_id` and `read_direction`.
+
+```{r}
+#| eval: false
+
+library(fs)
+library(stringr)
+library(tibble)
+
+# Simulate 100 FASTQ filenames
+fq_files <- c(
+  outer(sprintf("sample_%03d", 1:50), c("_R1.fastq.gz", "_R2.fastq.gz"),
+        paste0)
+) |> sort()
+
+head(fq_files, 6)
+
+# YOUR CODE:
+# 1. Extract just the filename (no directory) with fs::path_file()
+# 2. Strip the .fastq.gz extension(s) with fs::path_ext_remove() twice
+# 3. Extract sample_id and read_direction with str_extract()
+# 4. Combine into a tibble
+```
+
+::::
+
+::: {.callout-tip collapse="true" title="Solution"}
+```{r}
+#| eval: false
+
+library(fs)
+library(stringr)
+library(tibble)
+
+fq_files <- c(
+  outer(sprintf("sample_%03d", 1:50), c("_R1.fastq.gz", "_R2.fastq.gz"),
+        paste0)
+) |> sort()
+
+fq_tibble <- tibble(
+  filepath       = fq_files,
+  # Strip directory component (here files have none, but good practice)
+  filename       = fs::path_file(fq_files),
+  # Remove .gz, then .fastq â€” two calls because path_ext_remove() removes one extension at a time
+  stem           = fs::path_ext_remove(fs::path_ext_remove(filename)),
+  sample_id      = str_extract(stem, "sample_\\d+"),
+  read_direction = str_extract(stem, "R[12]$")
+) |>
+  dplyr::select(sample_id, read_direction, filepath)
+
+head(fq_tibble)
+```
+:::
+
+::: {.callout-tip title="Bonus Challenge â€” Full Project Initializer"}
+Build a `setup_bioinformatics_project(name)` function that:
+
+1. Creates the full directory skeleton with `fs::dir_create()`
+2. Initializes `renv` (calls `renv::init()`)
+3. Creates a `_targets.R` template
+4. Writes a starter `README.md`
+5. Returns the project path invisibly
+
+```{r}
+#| eval: false
+
+library(fs)
+
+setup_bioinformatics_project <- function(name) {
+  # 1. Create directories
+  fs::dir_create(fs::path(name, c(
+    "data/raw/fastq", "data/processed/counts",
+    "R/functions", "R/scripts",
+    "output/figures", "output/tables",
+    "docs"
+  )))
+
+  # 2. Initialize renv
+  withr::with_dir(name, renv::init(bare = TRUE))
+
+  # 3. Write _targets.R template
+  writeLines(c(
+    'library(targets)',
+    'tar_option_set(packages = c("dplyr", "readr"))',
+    'tar_source("R/functions/")',
+    'list(',
+    '  tar_target(counts_file, "data/raw/gene_counts.csv", format = "file"),',
+    '  tar_target(counts,      readr::read_csv(counts_file))',
+    ')'
+  ), fs::path(name, "_targets.R"))
+
+  # 4. Write README.md
+  writeLines(c(
+    paste0("# ", name),
+    "",
+    "## Overview",
+    "RNA-seq analysis project.",
+    "",
+    "## Setup",
+    "```r",
+    "renv::restore()",
+    "targets::tar_make()",
+    "```"
+  ), fs::path(name, "README.md"))
+
+  # 5. Return invisibly
+  invisible(fs::path_abs(name))
+}
+
+# setup_bioinformatics_project("pilot-rnaseq")
+```
+:::
+
+::: {.callout-tip title="Challenge â€” Complete Styled Analysis Script"}
+Write a complete, well-styled analysis script that:
+
+1. Uses `here()` for all file paths
+2. Has section headers
+3. Defines at least two functions with roxygen2 documentation
+4. Follows tidyverse style guide
+5. Has meaningful comments (why, not what)
+6. Would pass `lintr::lint()` with no warnings
+
+The script should load `samples_metadata.tsv`, flag high-quality samples, and produce a summary by tissue.
+
+```{r}
+#| code-fold: true
+#| eval: false
+
+# RNA-seq Sample QC Summary
+# Purpose: Identify high-quality samples and summarize by tissue type
+
+# Setup ----
+library(here)
+library(dplyr)
+library(readr)
+
+# Functions ----
+
+#' Flag samples meeting minimum RIN score threshold
+#'
+#' @param samples A data frame with a \code{rin_score} column.
+#' @param rin_threshold Numeric. Minimum acceptable RIN score. Default \code{8.0}.
+#' @return Filtered data frame containing only high-quality samples.
+flag_high_quality <- function(samples, rin_threshold = 8.0) {
+  samples[samples$rin_score >= rin_threshold, ]
+}
+
+#' Summarize sample quality metrics per tissue group
+#'
+#' @param samples A data frame with columns \code{tissue} and \code{rin_score}.
+#' @return A data frame with per-tissue n, mean RIN, and % high-quality.
+summarize_by_tissue <- function(samples) {
+  samples |>
+    group_by(tissue) |>
+    summarise(
+      n_samples = n(),
+      mean_rin  = round(mean(rin_score, na.rm = TRUE), 2),
+      pct_hq    = round(mean(rin_score >= 8.0) * 100, 1),
+      .groups   = "drop"
+    )
+}
+
+# Import ----
+# read_tsv is more explicit than read.csv for tab-delimited files
+metadata <- read_tsv(here("data", "raw", "samples_metadata.tsv"))
+
+# QC filtering ----
+# RIN >= 8.0 is the lab's minimum threshold for library prep (SOP-RNAseq-003)
+hq_samples <- flag_high_quality(metadata, rin_threshold = 8.0)
+
+# Summary ----
+tissue_summary <- summarize_by_tissue(hq_samples)
+
+cat("High-quality samples by tissue:\n")
+print(tissue_summary)
+```
+:::
+
+## Session Synthesis
+
+### Connect the Dots
+
+::: {.callout-important title="Synthesis Exercise"}
+Set up a complete professional bioinformatics project from scratch.
+
+Scenario: You are analyzing RNA-seq data from 20 samples (10 liver, 10 kidney) to identify differentially expressed genes.
+
+Deliver:
+
+1. Directory structure (bioinformatics-relevant subdirectories)
+2. README.md content
+3. .gitignore content
+4. A well-styled `R/scripts/01-filter.R` script that:
+   - Uses `here()` for paths
+   - Loads `samples_metadata.tsv` and `gene_counts.csv`
+   - Calls `filter_expressed()` and `flag_high_quality()`
+   - Has roxygen2-documented helper functions
+   - Follows tidyverse style guide with section headers
+5. `renv` initialization and a `_targets.R` outline
+
+```{r}
+#| eval: false
+
+# 1. Directory structure:
+cat("
+rnaseq-livkid/
+  rnaseq-livkid.Rproj
+  README.md
+  .gitignore
+  renv.lock
+  _targets.R
+  data/
+    raw/
+      fastq/          # Raw FASTQ (not committed to git)
+    processed/
+      counts/         # Gene count matrix from STAR/featureCounts
+  R/
+    functions/        # filter_expressed.R, plot_pca.R, ...
+    scripts/          # 01-filter.R, 02-normalize.R, 03-de.R
+  output/
+    figures/          # PCA plots, volcano plots
+    tables/           # DEG tables
+  docs/
+    report.qmd        # Final rendered report
+")
+
+# 2. README, .gitignore, scripts: write them here...
+
+# 5. renv + targets setup:
+# renv::init()
+# renv::install(c("dplyr", "readr", "edgeR", "bioc::DESeq2"))
+# renv::snapshot()
+# targets::tar_make()
+```
+:::
+
+### Key Takeaways
+
+1. R Projects and `here()` make file paths portable across machines
+2. The `fs` package provides type-safe, cross-platform file system operations â€” prefer it over `dir.create()` / `file.path()`
+3. `renv::snapshot()` and `renv::restore()` lock package versions for reproducibility, including Bioconductor packages
+4. `targets` orchestrates multi-step pipelines and only re-runs outdated steps â€” essential for long-running bioinformatics workflows
+5. `traceback()`, `browser()`, and Positron breakpoints are your primary debugging tools
+6. `profvis` reveals *where* time is spent; vectorized functions (`rowMeans()`, `sweep()`) are almost always faster than explicit loops
+7. `lintr` finds style problems; `styler` auto-fixes them
+8. Comment WHY (decisions and reasoning), not WHAT (the code already says what)
+9. Use `|>` for new code; you will encounter `%>%` in older codebases â€” both work
+
+### Prepare for Next Session
+
+Next session covers version control and the capstone project:
+
+- Git basics inside Positron
+- Final project work session
+- Course presentations and wrap-up
+
+Before next session:
+
+- Install Git: <https://git-scm.com/>
+- Create a GitHub account if you do not have one
+- Decide on your final project topic and dataset
+- Set up a project directory following today's structure using `fs::dir_create()`

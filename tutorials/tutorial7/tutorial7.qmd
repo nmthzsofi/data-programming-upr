@@ -1,0 +1,44 @@
+
+```{r}
+library(tidyverse)
+```
+
+
+```{r}
+n<-1000
+x<-(1:n-1)^((sqrt(5)-1)/2)*cos((1:n-1)*2*pi*(sqrt(5)-1)/2)
+y<-(1:n-1)^((sqrt(5)-1)/2)*sin((1:n-1)*2*pi*(sqrt(5)-1)/2)
+```
+
+
+```{r}
+plot(x,y)
+lattice::dotplot(y-x)
+data.frame(x,y)-> df
+esquisse::esquisser(df)
+ggplot(df) +
+  aes(x = x, y = y) +
+  geom_point(colour = "#112446") +
+  theme_minimal()
+```
+
+
+```{r}
+df |>
+    ggplot()+
+    aes(x,y)+
+    geom_point()
+
+plot(sin,-pi,pi)
+plot(\(x) x^2+1,-pi,pi) #from -pi to pi
+angle <- seq(-pi,pi,0.1)
+plot(cos(angle),sin(angle))
+points(c(1,1,-1,-1,1), c(1,-1,-1,1,1), "l")
+data.frame(xc=cos(angle), 
+            yc=sin(angle), 
+            xs=c(1,1,-1,-1,1,rep(NA,length(angle)-5)),
+            ys=c(1,-1,-1,1,1rep(NA,length(angle)-5)))|>
+ggplot()+
+    geom_path(x=xc, y=yc)+
+    geom_path(xs,ys)
+```

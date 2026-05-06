@@ -1,0 +1,1101 @@
+---
+title: "Session 12: Quarto Outputs"
+subtitle: "R Programming Workbook"
+author: "R Programming Course"
+date: today
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    toc-location: left
+    code-fold: show
+    code-tools: true
+    code-overflow: wrap
+    theme: cosmo
+    self-contained: true
+execute:
+  echo: true
+  warning: false
+  message: false
+---
+
+## Learning Objectives
+
+::: {.callout-note title="Learning Objectives"}
+By the end of this session you will be able to:
+
+1. Create Reveal.js presentations in Quarto with incremental reveals, speaker notes, and custom themes
+2. Use presentation-specific features like columns, fragments, and background images
+3. Build interactive dashboards using Quarto's dashboard layout system
+4. Arrange dashboard components with rows, columns, cards, and value boxes
+5. Add interactive widgets to dashboards using plotly and leaflet
+6. Set up a Quarto website project with navigation and multiple pages
+7. Create a blog with listings, categories, and date-based organization
+8. Configure website navigation, themes, and deployment options
+:::
+
+## Part 1: Quarto Presentations with Reveal.js
+
+Quarto can produce presentation slides in multiple formats. Reveal.js gives you the most control and interactivity for HTML-based presentations.
+
+### Minimal Reveal.js Presentation
+
+The simplest Reveal.js document:
+
+````{verbatim}
+---
+title: "My First Slides"
+format: revealjs
+---
+
+## Slide One
+
+Content goes here.
+
+## Slide Two
+
+More content.
+````
+
+Each level-2 heading (`##`) creates a new slide. The title page is generated automatically from the YAML.
+
+### Slide Structure and Layout
+
+Reveal.js supports horizontal and vertical slides:
+
+````{verbatim}
+---
+title: "Slide Structure"
+format: revealjs
+---
+
+## Horizontal Slide 1
+
+Use ## for horizontal navigation.
+
+## Horizontal Slide 2
+
+### Vertical Slide 2a
+
+Use ### for vertical (nested) slides.
+
+### Vertical Slide 2b
+
+Navigate down from Slide 2.
+````
+
+Horizontal slides move left/right. Vertical slides move up/down under their parent.
+
+### Incremental Content
+
+Reveal content piece by piece:
+
+````{verbatim}
+## Incremental List
+
+::: {.incremental}
+- First point appears
+- Second point appears
+- Third point appears
+:::
+
+## Pause Between Content
+
+First paragraph shows.
+
+. . .
+
+Second paragraph appears after a click.
+
+. . .
+
+Third paragraph appears after another click.
+````
+
+The `. . .` syntax (three dots with spaces) creates a pause. The `.incremental` class makes list items appear one at a time.
+
+### Speaker Notes
+
+Add notes visible only in speaker view (press `S` during presentation):
+
+````{verbatim}
+## Important Slide
+
+Key point for the audience.
+
+::: {.notes}
+This text only appears in speaker view.
+Remind students about the assignment deadline.
+Estimated time: 5 minutes on this slide.
+:::
+````
+
+### Your Turn: Basic Presentation
+
+::: {.callout-caution title="Your Turn"}
+Create a short Reveal.js presentation about a topic you know well (a hobby, a programming language, a recipe). Include:
+
+- A title slide
+- At least 4 content slides
+- One slide with incremental content
+- Speaker notes on at least 2 slides
+
+Write the YAML and markdown below:
+
+```{r}
+#| eval: false
+
+# Write your .qmd content as a string to see the structure:
+presentation_content <- '
+---
+title: "Your Title"
+format: revealjs
+---
+
+## Slide 1
+
+Your content here.
+'
+
+cat(presentation_content)
+```
+:::
+
+### Columns and Layout
+
+Split slides into columns:
+
+````{verbatim}
+## Two Column Layout
+
+:::: {.columns}
+
+::: {.column width="50%"}
+Left column content.
+
+- Point A
+- Point B
+:::
+
+::: {.column width="50%"}
+Right column content.
+
+```{r}
+plot(1:10)
+```
+:::
+
+::::
+````
+
+### Code on Slides
+
+Control how code appears:
+
+````{verbatim}
+## Code Display Options
+
+```{r}
+#| echo: true
+#| code-line-numbers: "2-3"
+#| output-location: fragment
+
+library(ggplot2)
+ggplot(mtcars, aes(wt, mpg)) +
+  geom_point(color = "steelblue", size = 3) +
+  theme_minimal()
+```
+````
+
+`code-line-numbers` highlights specific lines. `output-location: fragment` shows output on click.
+
+### Slide Backgrounds and Themes
+
+````{verbatim}
+---
+title: "Styled Presentation"
+format:
+  revealjs:
+    theme: dark
+    slide-number: true
+    transition: slide
+    chalkboard: true
+---
+
+## Normal Slide
+
+Regular background.
+
+## {background-color="navy"}
+
+This slide has a navy background.
+
+## {background-image="https://example.com/image.jpg"}
+
+This slide has an image background.
+````
+
+Available themes: `default`, `dark`, `moon`, `night`, `serif`, `simple`, `sky`, `solarized`.
+
+### Your Turn: Styled Presentation
+
+::: {.callout-caution title="Your Turn"}
+Enhance your presentation from the previous exercise:
+
+1. Add a two-column slide comparing two things
+2. Add a code chunk with `output-location: fragment`
+3. Change the theme to something other than default
+4. Add `slide-number: true` to the YAML
+
+```{r}
+#| eval: false
+
+# Update your presentation content:
+styled_presentation <- '
+---
+title: "Enhanced Presentation"
+format:
+  revealjs:
+    theme: moon
+    slide-number: true
+---
+
+## Your slides here
+'
+
+cat(styled_presentation)
+```
+:::
+
+::: {.callout-warning title="Common Mistake"}
+Forgetting the four-colon `::::` fence when nesting div blocks:
+
+Wrong:
+````{verbatim}
+::: {.columns}
+::: {.column width="50%"}
+Content
+:::
+::: {.column width="50%"}
+Content
+:::
+:::
+````
+
+The outer fence needs four colons `::::` to distinguish it from the inner three-colon fences. Quarto will silently produce broken layout without an error.
+:::
+
+### Fragments and Custom Classes
+
+Control animation of individual elements:
+
+````{verbatim}
+## Fragment Styles
+
+::: {.fragment .fade-in}
+I fade in.
+:::
+
+::: {.fragment .fade-up}
+I fade up.
+:::
+
+::: {.fragment .highlight-red}
+I turn red.
+:::
+
+::: {.fragment .strike}
+I get struck through.
+:::
+````
+
+Fragment styles: `fade-in`, `fade-out`, `fade-up`, `fade-down`, `fade-left`, `fade-right`, `highlight-red`, `highlight-blue`, `highlight-green`, `strike`, `semi-fade-out`.
+
+### Your Turn: Complete Presentation
+
+::: {.callout-caution title="Your Turn"}
+Build a 6-slide Reveal.js presentation that reports on the `mtcars` dataset. Include:
+
+1. Title slide with your name
+2. Overview slide describing the dataset (use incremental list)
+3. Two-column slide: summary stats on left, scatter plot on right
+4. A slide with a code chunk and `output-location: fragment`
+5. A slide with speaker notes
+6. A closing slide with key findings
+
+```{r}
+#| eval: false
+
+# Write the full presentation structure here:
+mtcars_presentation <- '
+---
+title: "Exploring mtcars"
+author: "Your Name"
+format:
+  revealjs:
+    theme: dark
+    slide-number: true
+    code-line-numbers: true
+---
+
+## Overview
+
+Your content...
+'
+
+cat(mtcars_presentation)
+```
+:::
+
+::: {.callout-tip title="Challenge"}
+Add a custom SCSS theme file reference to your presentation YAML. The SCSS should change the heading font, background color, and link color. Write the CSS rules you would put in `custom.scss`:
+
+```{r}
+#| eval: false
+
+custom_scss <- '
+/*-- scss:defaults --*/
+$presentation-heading-font: "Georgia", serif;
+$body-bg: #1a1a2e;
+$link-color: #e94560;
+
+/*-- scss:rules --*/
+.reveal .slide-number {
+  font-size: 0.7em;
+  color: #e94560;
+}
+'
+cat(custom_scss)
+```
+:::
+
+## Part 2: Quarto Dashboards
+
+Quarto dashboards let you create interactive data displays without Shiny. They use a card-based layout system.
+
+### Minimal Dashboard
+
+````{verbatim}
+---
+title: "My Dashboard"
+format: dashboard
+---
+
+## Row
+
+```{r}
+plot(1:10, main = "Simple Plot")
+```
+
+```{r}
+summary(mtcars)
+```
+````
+
+The `format: dashboard` setting changes how content is arranged. Each code chunk becomes a card. Level-2 headings define rows.
+
+### Dashboard Layout: Rows and Columns
+
+````{verbatim}
+---
+title: "Layout Example"
+format: dashboard
+---
+
+## Row {height="40%"}
+
+```{r}
+#| title: "Sales Over Time"
+plot(1:100, cumsum(rnorm(100)), type = "l")
+```
+
+## Row {height="60%"}
+
+### Column {width="60%"}
+
+```{r}
+#| title: "Revenue by Region"
+barplot(c(North = 340, South = 280, West = 420))
+```
+
+### Column {width="40%"}
+
+```{r}
+#| title: "Summary Stats"
+summary(mtcars[, 1:4])
+```
+````
+
+Rows stack vertically. Columns within rows stack horizontally. Use `{height="X%"}` and `{width="X%"}` to control sizes.
+
+### Value Boxes
+
+Display key metrics:
+
+````{verbatim}
+## Row {height="20%"}
+
+```{r}
+#| content: valuebox
+#| title: "Total Revenue"
+#| icon: currency-dollar
+#| color: success
+list(value = "$1.2M")
+```
+
+```{r}
+#| content: valuebox
+#| title: "Orders"
+#| icon: cart
+#| color: primary
+list(value = "4,521")
+```
+
+```{r}
+#| content: valuebox
+#| title: "Return Rate"
+#| icon: arrow-return-left
+#| color: warning
+list(value = "4.8%")
+```
+````
+
+Value boxes use Bootstrap icons. Colors: `primary`, `secondary`, `success`, `danger`, `warning`, `info`, `light`, `dark`.
+
+### Your Turn: Simple Dashboard
+
+::: {.callout-caution title="Your Turn"}
+Design a dashboard for the `mtcars` dataset with:
+
+- A row of 3 value boxes showing: number of cars, average MPG, average horsepower
+- A row with two charts: scatter plot of mpg vs wt, and bar chart of cars per cylinder count
+
+Write the dashboard YAML and content:
+
+```{r}
+#| eval: false
+
+dashboard_content <- '
+---
+title: "mtcars Dashboard"
+format: dashboard
+---
+
+## Row {height="20%"}
+
+Your value boxes here...
+
+## Row {height="80%"}
+
+Your charts here...
+'
+
+cat(dashboard_content)
+```
+:::
+
+### Tabsets in Dashboards
+
+Tabs let you pack more content into the same space:
+
+````{verbatim}
+## Row {.tabset}
+
+```{r}
+#| title: "Plot View"
+plot(mtcars$wt, mtcars$mpg)
+```
+
+```{r}
+#| title: "Table View"
+head(mtcars)
+```
+
+```{r}
+#| title: "Summary"
+summary(mtcars)
+```
+````
+
+Adding `{.tabset}` to a row heading turns its children into tabs instead of side-by-side cards.
+
+### Pages in Dashboards
+
+Create multi-page dashboards:
+
+````{verbatim}
+---
+title: "Multi-Page Dashboard"
+format: dashboard
+---
+
+# Overview
+
+## Row
+
+```{r}
+#| title: "Main Chart"
+plot(1:10)
+```
+
+# Details
+
+## Row
+
+```{r}
+#| title: "Detailed Table"
+head(mtcars, 20)
+```
+````
+
+Level-1 headings (`#`) create pages. Navigation tabs appear at the top.
+
+### Interactive Widgets
+
+Add interactivity without Shiny using htmlwidgets:
+
+```{r}
+#| eval: false
+
+# plotly for interactive plots
+library(plotly)
+p <- ggplot(mtcars, aes(wt, mpg, color = factor(cyl))) +
+  geom_point(size = 3) +
+  theme_minimal()
+ggplotly(p)
+
+# DT for interactive tables
+library(DT)
+datatable(mtcars, filter = "top", options = list(pageLength = 10))
+
+# leaflet for maps
+library(leaflet)
+leaflet() |>
+  addTiles() |>
+  addMarkers(lng = -73.99, lat = 40.73, popup = "NYC")
+```
+
+These widgets work in dashboards without a server.
+
+### Your Turn: Multi-Page Dashboard
+
+::: {.callout-caution title="Your Turn"}
+Design a two-page dashboard:
+
+Page 1 "Overview": value boxes + a main chart
+Page 2 "Details": a tabset with plot, table, and summary views
+
+```{r}
+#| eval: false
+
+multi_page <- '
+---
+title: "Car Analysis"
+format: dashboard
+---
+
+# Overview
+
+## Row {height="20%"}
+
+Value boxes...
+
+## Row {height="80%"}
+
+Main chart...
+
+# Details
+
+## Row {.tabset}
+
+Tab content...
+'
+
+cat(multi_page)
+```
+:::
+
+::: {.callout-warning title="Common Mistake"}
+Using regular R output in value boxes instead of a list:
+
+Wrong:
+````{verbatim}
+```{r}
+#| content: valuebox
+#| title: "Count"
+nrow(mtcars)
+```
+````
+
+Right:
+````{verbatim}
+```{r}
+#| content: valuebox
+#| title: "Count"
+list(value = nrow(mtcars))
+```
+````
+
+Value boxes expect `list(value = ...)`. A bare value will not render correctly.
+:::
+
+::: {.callout-tip title="Challenge"}
+Design a dashboard that uses the `sales` dataset from Sessions 5-10. Include:
+
+- 4 value boxes: total revenue, total units, return rate, number of products
+- A row with a time series chart and a bar chart by region
+- A tabset row with tables filtered by product
+
+Write the complete dashboard structure.
+:::
+
+## Part 3: Quarto Websites and Blogs
+
+Quarto websites let you publish multiple connected pages with shared navigation.
+
+### Website Project Structure
+
+A Quarto website is a project with a `_quarto.yml` configuration file:
+
+```
+my-website/
+  _quarto.yml
+  index.qmd
+  about.qmd
+  analysis.qmd
+  styles.css
+```
+
+The `_quarto.yml` file defines the site:
+
+````{verbatim}
+project:
+  type: website
+
+website:
+  title: "My Research Site"
+  navbar:
+    left:
+      - href: index.qmd
+        text: Home
+      - href: about.qmd
+        text: About
+      - href: analysis.qmd
+        text: Analysis
+
+format:
+  html:
+    theme: cosmo
+    css: styles.css
+````
+
+### Creating Pages
+
+Each `.qmd` file becomes a page:
+
+````{verbatim}
+---
+title: "Home"
+---
+
+Welcome to my research site.
+
+## Recent Work
+
+See the [analysis](analysis.qmd) page for results.
+````
+
+Links between pages use relative paths to `.qmd` files. Quarto converts them to `.html` links on render.
+
+### Navigation Options
+
+Quarto websites support navbar and sidebar navigation:
+
+````{verbatim}
+# Navbar with dropdown
+website:
+  navbar:
+    left:
+      - text: "Data"
+        menu:
+          - href: data-raw.qmd
+            text: "Raw Data"
+          - href: data-clean.qmd
+            text: "Clean Data"
+    right:
+      - icon: github
+        href: https://github.com/username/repo
+
+# Sidebar navigation
+website:
+  sidebar:
+    style: docked
+    contents:
+      - section: "Getting Started"
+        contents:
+          - index.qmd
+          - setup.qmd
+      - section: "Analysis"
+        contents:
+          - analysis.qmd
+          - results.qmd
+````
+
+### Your Turn: Website Configuration
+
+::: {.callout-caution title="Your Turn"}
+Write the `_quarto.yml` for a course project website with:
+
+- A navbar with: Home, Methods, Results, About
+- A dropdown under "Results" for: Tables and Figures
+- A GitHub icon link in the right navbar
+- The `flatly` theme
+
+```{r}
+#| eval: false
+
+quarto_yml <- '
+project:
+  type: website
+
+website:
+  title: "Your Project"
+  navbar:
+    left:
+      # Your navigation here
+    right:
+      # GitHub icon here
+
+format:
+  html:
+    theme: flatly
+'
+
+cat(quarto_yml)
+```
+:::
+
+### Blog Setup
+
+A Quarto blog is a website with a listing page:
+
+````{verbatim}
+# _quarto.yml
+project:
+  type: website
+
+website:
+  title: "Data Science Blog"
+  navbar:
+    left:
+      - href: index.qmd
+        text: Blog
+      - href: about.qmd
+        text: About
+````
+
+The blog index page uses a listing:
+
+````{verbatim}
+---
+title: "My Blog"
+listing:
+  contents: posts
+  sort: "date desc"
+  type: default
+  categories: true
+  feed: true
+---
+````
+
+Blog posts go in a `posts/` directory:
+
+```
+my-blog/
+  _quarto.yml
+  index.qmd
+  about.qmd
+  posts/
+    2024-01-15-first-post/
+      index.qmd
+      image.png
+    2024-02-01-second-post/
+      index.qmd
+```
+
+Each post has its own folder with an `index.qmd`:
+
+````{verbatim}
+---
+title: "My First Post"
+author: "Your Name"
+date: "2024-01-15"
+categories: [R, tutorial]
+image: "image.png"
+---
+
+Post content goes here.
+````
+
+### Listing Options
+
+Control how the blog listing appears:
+
+````{verbatim}
+---
+title: "Blog"
+listing:
+  contents: posts
+  sort: "date desc"
+  type: grid          # default, grid, or table
+  categories: true
+  feed: true
+  page-size: 5
+  fields: [title, author, date, categories, description]
+---
+````
+
+Three listing types: `default` (list view), `grid` (card view), `table` (spreadsheet view).
+
+### Your Turn: Blog Structure
+
+::: {.callout-caution title="Your Turn"}
+Plan a blog about your R learning journey. Write:
+
+1. The `_quarto.yml` configuration
+2. The `index.qmd` listing page (using grid layout)
+3. The YAML front matter for two blog posts with categories
+
+```{r}
+#| eval: false
+
+blog_yml <- '
+project:
+  type: website
+
+website:
+  title: "Your Blog Title"
+  # Add navbar
+'
+
+blog_index <- '
+---
+title: "Your Blog"
+listing:
+  # Configure listing
+---
+'
+
+post1_yaml <- '
+---
+title: "First Post Title"
+# Add metadata
+---
+'
+
+cat(blog_yml, "\n---\n", blog_index, "\n---\n", post1_yaml)
+```
+:::
+
+### Website Themes and Customization
+
+Apply built-in themes or customize with CSS/SCSS:
+
+````{verbatim}
+# In _quarto.yml
+format:
+  html:
+    theme:
+      light: flatly
+      dark: darkly
+    css: custom.css
+    fontsize: 1.1em
+    linestretch: 1.6
+````
+
+The `light`/`dark` setup gives users a theme toggle.
+
+Custom CSS goes in a separate file:
+
+```{r}
+#| eval: false
+
+custom_css <- '
+/* custom.css */
+.quarto-title {
+  color: #2c3e50;
+  border-bottom: 3px solid #3498db;
+}
+
+.sidebar nav {
+  font-size: 0.9em;
+}
+
+code {
+  background-color: #f0f0f0;
+  padding: 2px 5px;
+  border-radius: 3px;
+}
+'
+cat(custom_css)
+```
+
+### Rendering and Preview
+
+In Positron, render a website project:
+
+```{r}
+#| eval: false
+
+# Render entire site
+# Terminal: quarto render
+
+# Preview with live reload
+# Terminal: quarto preview
+
+# Render single page
+# Terminal: quarto render analysis.qmd
+```
+
+The `_site/` directory contains the rendered output. This is what you deploy.
+
+::: {.callout-warning title="Common Mistake"}
+Putting absolute file paths in website links:
+
+Wrong: `[Results](/Users/me/project/results.qmd)`
+
+Right: `[Results](results.qmd)`
+
+Always use relative paths. Absolute paths break when the site is deployed to a different location.
+:::
+
+### Your Turn: Complete Website Plan
+
+::: {.callout-caution title="Your Turn"}
+Design a complete Quarto website for a data analysis project. Write:
+
+1. The directory structure (list all files and folders)
+2. The `_quarto.yml` with sidebar navigation
+3. The `index.qmd` home page with a welcome message and links to other pages
+4. The YAML for a results page that includes code chunks
+
+```{r}
+#| eval: false
+
+# 1. Directory structure
+dir_structure <- "
+project-site/
+  _quarto.yml
+  index.qmd
+  ...add more files...
+"
+
+# 2. _quarto.yml
+quarto_config <- '
+project:
+  type: website
+  output-dir: _site
+
+website:
+  title: "Project Name"
+  sidebar:
+    style: docked
+    contents:
+      # Your navigation
+'
+
+# 3. index.qmd
+home_page <- '
+---
+title: "Welcome"
+---
+
+Your home page content...
+'
+
+cat(dir_structure, "\n---\n", quarto_config, "\n---\n", home_page)
+```
+:::
+
+::: {.callout-tip title="Challenge"}
+Create a full blog post in Quarto that:
+
+1. Analyzes the `mtcars` dataset
+2. Includes at least 2 ggplot2 visualizations
+3. Uses cross-references for figures
+4. Has categories and a description in the YAML
+5. Uses tabsets to show code and output separately
+
+Write the complete post content.
+:::
+
+## Session Synthesis
+
+### Connect the Dots
+
+::: {.callout-important title="Synthesis Exercise"}
+You are building a portfolio to showcase your R skills. Design a Quarto website that includes:
+
+1. **Home page**: Brief intro and links to your projects
+2. **Blog section**: With at least 2 posts about R topics you have learned
+3. **Dashboard page**: An embedded dashboard analyzing a dataset
+4. **Presentation page**: A link to a Reveal.js presentation you created
+
+Write out:
+
+- The complete `_quarto.yml`
+- The directory structure
+- The YAML front matter for each page
+- The listing configuration for the blog
+- One complete blog post with code and visualizations
+
+```{r}
+#| eval: false
+
+# Your complete portfolio plan:
+portfolio_config <- '
+project:
+  type: website
+  output-dir: _site
+
+website:
+  title: "My R Portfolio"
+  navbar:
+    left:
+      - href: index.qmd
+        text: Home
+      - href: blog.qmd
+        text: Blog
+      - href: dashboard.qmd
+        text: Dashboard
+      - href: presentation.qmd
+        text: Slides
+    right:
+      - icon: github
+        href: https://github.com/yourusername
+
+format:
+  html:
+    theme:
+      light: flatly
+      dark: darkly
+'
+cat(portfolio_config)
+```
+:::
+
+### Key Takeaways
+
+1. Reveal.js presentations use `##` for slides, `. . .` for pauses, and `::: {.notes}` for speaker notes
+2. Dashboards use `format: dashboard` with rows, columns, value boxes, and tabsets arranged by headings
+3. Websites need a `_quarto.yml` file defining project type, navigation, and shared format settings
+4. Blogs are websites with listing pages that auto-generate post indexes from a `posts/` directory
+5. All Quarto output types share the same markdown and code chunk syntax, just different YAML and layout rules
+
+### Prepare for Next Session
+
+Next session covers advanced Quarto: custom chunk options, conditional content, extensions, custom formats, and publishing workflows. Before next session:
+
+- Experiment with rendering a simple Reveal.js deck in Positron
+- Try creating a `_quarto.yml` file and rendering a two-page website
+- Browse the Quarto gallery at <https://quarto.org/docs/gallery/> for inspiration

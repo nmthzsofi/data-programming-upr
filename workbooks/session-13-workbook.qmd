@@ -1,0 +1,979 @@
+---
+title: "Session 13: Advanced Quarto"
+subtitle: "R Programming Workbook"
+author: "R Programming Course"
+date: today
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    toc-location: left
+    code-fold: show
+    code-tools: true
+    code-overflow: wrap
+    theme: cosmo
+    self-contained: true
+execute:
+  echo: true
+  warning: false
+  message: false
+---
+
+## Learning Objectives
+
+::: {.callout-note title="Learning Objectives"}
+By the end of this session you will be able to:
+
+1. Use advanced chunk options like `results`, `layout-ncol`, and figure/table labels
+2. Create cross-references for figures, tables, and sections
+3. Use conditional content to show/hide material by output format or profile
+4. Include external files and use shortcodes
+5. Install and use Quarto extensions (shortcodes, filters, journal templates)
+6. Create custom formats with SCSS theming
+7. Batch render parameterized documents
+8. Publish documents to Quarto Pub, GitHub Pages, and Netlify
+9. Configure freeze for efficient website/blog rendering
+:::
+
+## Part 1: Advanced Chunk Options and Content Control
+
+### Output Control with `results`
+
+The `results` chunk option controls how R output is treated:
+
+```{r}
+#| results: markup
+
+# Default behavior: output is formatted as code output
+head(mtcars, 3)
+```
+
+Compare with `results: asis`, which treats output as raw markdown:
+
+```{r}
+#| results: asis
+
+cat("**This text is bold** because R output is treated as markdown.\n\n")
+cat("| Column A | Column B |\n")
+cat("|----------|----------|\n")
+cat("| 1        | 2        |\n")
+cat("| 3        | 4        |\n")
+```
+
+The `asis` option is powerful for generating dynamic content. The output from `cat()` is interpreted as markdown rather than displayed as code output.
+
+### Programmatic Content Generation
+
+Use `results: asis` to build reports from data:
+
+```{r}
+#| results: asis
+
+datasets <- list(
+  mtcars = mtcars,
+  iris = iris,
+  airquality = airquality
+)
+
+for (name in names(datasets)) {
+  cat(sprintf("### %s\n\n", name))
+  cat(sprintf("- **Rows:** %d\n", nrow(datasets[[name]])))
+  cat(sprintf("- **Columns:** %d\n", ncol(datasets[[name]])))
+  cat(sprintf("- **Column names:** %s\n\n", paste(names(datasets[[name]]), collapse = ", ")))
+}
+```
+
+Each iteration generates a markdown section with a heading and bullet points. This technique scales to any number of datasets, regions, or time periods.
+
+### Your Turn: Dynamic Report Section
+
+::: {.callout-caution title="Your Turn"}
+Use `results: asis` to generate a summary section for each cylinder group in `mtcars`. For each group, output:
+
+- A level-3 heading with the cylinder count
+- The number of cars in that group
+- The average MPG
+- The average horsepower
+
+```{r}
+#| results: asis
+#| code-fold: true
+
+# Your code here:
+for (cyl_val in sort(unique(mtcars$cyl))) {
+  subset_data <- mtcars[mtcars$cyl == cyl_val, ]
+  cat(sprintf("### %d Cylinders\n\n", cyl_val))
+  cat(sprintf("- Cars: %d\n", nrow(subset_data)))
+  cat(sprintf("- Avg MPG: %.1f\n", mean(subset_data$mpg)))
+  cat(sprintf("- Avg HP: %.0f\n\n", mean(subset_data$hp)))
+}
+```
+:::
+
+### Figure Options and Cross-References
+
+Label figures for cross-referencing:
+
+```{r}
+#| label: fig-mpg-scatter
+#| fig-cap: "Relationship between car weight and fuel efficiency"
+#| fig-width: 7
+#| fig-height: 5
+
+plot(mtcars$wt, mtcars$mpg,
+     pch = 19, col = "steelblue",
+     xlab = "Weight (1000 lbs)",
+     ylab = "Miles per Gallon",
+     main = "")
+abline(lm(mpg ~ wt, data = mtcars), col = "coral", lwd = 2)
+```
+
+You can reference this figure with `@fig-mpg-scatter` in your text. The label must start with `fig-` for figure cross-references to work.
+
+### Table Cross-References
+
+```{r}
+#| label: tbl-cylinder-summary
+#| tbl-cap: "Average statistics by cylinder count"
+
+cyl_summary <- aggregate(
+  cbind(mpg, hp, wt) ~ cyl,
+  data = mtcars,
+  FUN = mean
+)
+names(cyl_summary) <- c("Cylinders", "Avg MPG", "Avg HP", "Avg Weight")
+knitr::kable(cyl_summary, digits = 1)
+```
+
+Table labels must start with `tbl-` and use `tbl-cap` for the caption.
+
+### Multi-Plot Layouts
+
+Place multiple plots in a grid:
+
+```{r}
+#| layout-ncol: 2
+#| fig-cap:
+#|   - "MPG distribution"
+#|   - "Horsepower distribution"
+
+hist(mtcars$mpg, main = "", col = "steelblue",
+     xlab = "Miles per Gallon", breaks = 10)
+hist(mtcars$hp, main = "", col = "coral",
+     xlab = "Horsepower", breaks = 10)
+```
+
+The `layout-ncol: 2` option arranges plots in two columns. Each plot gets its own caption from the `fig-cap` list.
+
+### Your Turn: Labeled Figures
+
+::: {.callout-caution title="Your Turn"}
+Create two labeled plots of the `iris` dataset:
+
+1. A scatter plot of `Sepal.Length` vs `Petal.Length` with label `fig-iris-scatter` and a caption
+2. A boxplot of `Sepal.Width` by `Species` with label `fig-iris-box` and a caption
+
+Use `layout-ncol: 2` to display them side by side.
+
+```{r}
+#| layout-ncol: 2
+#| label: fig-iris-plots
+#| fig-cap:
+#|   - "Sepal length vs petal length"
+#|   - "Sepal width by species"
+
+# Plot 1: scatter
+plot(iris$Sepal.Length, iris$Petal.Length,
+     pch = 19, col = as.numeric(iris$Species),
+     xlab = "Sepal Length", ylab = "Petal Length")
+
+# Plot 2: boxplot
+boxplot(Sepal.Width ~ Species, data = iris,
+        col = c("steelblue", "coral", "forestgreen"))
+```
+:::
+
+::: {.callout-warning title="Common Mistake"}
+Using the wrong label prefix for cross-references:
+
+```{r}
+#| eval: false
+
+# Wrong: label does not start with fig-
+#| label: scatter-plot
+#| fig-cap: "My plot"
+
+# Result: @scatter-plot appears as plain text, not "Figure 1"
+
+# Right: label starts with fig-
+#| label: fig-scatter-plot
+#| fig-cap: "My plot"
+
+# Result: @fig-scatter-plot renders as "Figure 1" with a link
+```
+
+Prefix rules: `fig-` for figures, `tbl-` for tables, `eq-` for equations. No prefix, no cross-reference.
+:::
+
+### Conditional Content
+
+Show different content based on output format:
+
+````{verbatim}
+::: {.content-visible when-format="html"}
+This interactive widget only appears in HTML:
+```{r}
+# plotly code here
+```
+:::
+
+::: {.content-visible when-format="pdf"}
+Static version for PDF:
+```{r}
+# base R plot here
+```
+:::
+````
+
+### Conditional Content with Profiles
+
+Create student and instructor versions from one source:
+
+````{verbatim}
+# In _quarto.yml:
+profile:
+  group:
+    - [student, instructor]
+
+# In your .qmd:
+::: {.content-visible when-profile="instructor"}
+**Answer:** The p-value is 0.023, indicating significance at alpha = 0.05.
+:::
+
+::: {.content-visible when-profile="student"}
+Calculate the p-value and interpret the result.
+:::
+````
+
+Render with `quarto render --profile instructor` or `quarto render --profile student`.
+
+### Your Turn: Conditional Document
+
+::: {.callout-caution title="Your Turn"}
+Write a short quiz document that shows questions for students and answers for instructors using profile-based conditional content. Include at least 3 questions about R.
+
+Write the YAML configuration and the conditional content blocks:
+
+```{r}
+#| eval: false
+
+quiz_yml <- '
+profile:
+  group:
+    - [student, instructor]
+'
+
+quiz_content <- '
+## Question 1
+What does `length(c(1, 2, NA, 4))` return?
+
+::: {.content-visible when-profile="student"}
+Write your answer here: ___
+:::
+
+::: {.content-visible when-profile="instructor"}
+**Answer:** 4. `length()` counts all elements including NA.
+:::
+
+## Question 2
+What is the difference between `[` and `[[` for lists?
+
+::: {.content-visible when-profile="student"}
+Write your answer here: ___
+:::
+
+::: {.content-visible when-profile="instructor"}
+**Answer:** `[` returns a sub-list, `[[` extracts a single element.
+:::
+'
+
+cat(quiz_yml, "\n---\n", quiz_content)
+```
+:::
+
+### Includes and Shortcodes
+
+Pull in content from external files:
+
+````{verbatim}
+{{< include _methods.qmd >}}
+````
+
+The included file's content replaces the shortcode. Use underscore prefix (`_methods.qmd`) for partial files that are not standalone documents.
+
+Built-in shortcodes:
+
+| Shortcode | Purpose |
+|-----------|---------|
+| `{{< include file.qmd >}}` | Insert file content |
+| `{{< pagebreak >}}` | Page break (PDF) |
+| `{{< kbd Ctrl+S >}}` | Keyboard shortcut styling |
+| `{{< meta title >}}` | Insert YAML metadata value |
+| `{{< video url >}}` | Embed video |
+
+### Your Turn: Document with Includes
+
+::: {.callout-caution title="Your Turn"}
+Plan a research report that uses includes. Write:
+
+1. The main document structure with `{{< include >}}` shortcodes
+2. The content for each included file
+
+```{r}
+#| eval: false
+
+main_doc <- '
+---
+title: "Research Report"
+format: html
+---
+
+## Introduction
+
+{{< include _intro.qmd >}}
+
+## Methods
+
+{{< include _methods.qmd >}}
+
+## Results
+
+{{< include _results.qmd >}}
+
+## Discussion
+
+{{< include _discussion.qmd >}}
+'
+
+intro_content <- '
+This study examines the relationship between...
+'
+
+methods_content <- '
+We collected data from...
+'
+
+cat(main_doc)
+```
+:::
+
+::: {.callout-tip title="Challenge"}
+Create a parameterized document that generates a report for any column in `mtcars`. The parameter should be the column name. The report should include:
+
+- A histogram of the column
+- Summary statistics
+- A labeled, cross-referenceable figure
+
+Write the YAML with params and the body using `params$column`:
+
+```{r}
+#| eval: false
+
+param_report <- '
+---
+title: "Column Analysis"
+params:
+  column: "mpg"
+format: html
+---
+'
+cat(param_report)
+
+# Then write code that uses params$column:
+# hist(mtcars[[params$column]])
+# summary(mtcars[[params$column]])
+```
+:::
+
+## Part 2: Quarto Extensions and Custom Formats
+
+### Installing Extensions
+
+Extensions are Quarto plugins installed per-project:
+
+```{r}
+#| eval: false
+
+# In your terminal (not R console):
+# quarto add quarto-ext/fontawesome
+# quarto add quarto-ext/lightbox
+```
+
+Extensions install into `_extensions/` in your project directory:
+
+```
+my-project/
+  _extensions/
+    quarto-ext/
+      fontawesome/
+        _extension.yml
+        ...
+  document.qmd
+```
+
+### Shortcode Extensions
+
+After installing `fontawesome`:
+
+````{verbatim}
+{{< fa brands github >}} View on GitHub
+{{< fa solid chart-line >}} Analysis
+{{< fa regular envelope >}} Email
+````
+
+The syntax is `fa [style] [icon-name]`. Styles: `solid`, `regular`, `brands`.
+
+### Filter Extensions
+
+Filters transform your document during rendering:
+
+```{r}
+#| eval: false
+
+# Install latex-environment filter:
+# quarto add quarto-ext/latex-environment
+```
+
+````{verbatim}
+---
+filters:
+  - latex-environment
+environments: [theorem, proof]
+---
+
+::: {.theorem}
+For all n >= 1, the sum of integers from 1 to n equals n(n+1)/2.
+:::
+````
+
+### Journal Article Templates
+
+Write papers formatted for specific journals:
+
+```{r}
+#| eval: false
+
+# Install Journal of Statistical Software template:
+# quarto add quarto-journals/jss
+```
+
+````{verbatim}
+---
+title: "My Paper"
+format:
+  jss-pdf:
+    keep-tex: true
+  jss-html: default
+---
+````
+
+Available journals: JSS, PLOS, Elsevier, ACM, ASA, and more.
+
+### Your Turn: Extension Research
+
+::: {.callout-caution title="Your Turn"}
+Browse the Quarto extensions listing at <https://quarto.org/docs/extensions/> and identify:
+
+1. Two shortcode extensions you would use in a blog
+2. One filter extension useful for academic writing
+3. One journal template relevant to your field
+
+Write your findings:
+
+```{r}
+#| eval: false
+
+# Extension 1 (shortcode):
+# Name:
+# Purpose:
+# Install command:
+
+# Extension 2 (shortcode):
+# Name:
+# Purpose:
+# Install command:
+
+# Extension 3 (filter):
+# Name:
+# Purpose:
+# Install command:
+
+# Extension 4 (journal):
+# Name:
+# Purpose:
+# Install command:
+```
+:::
+
+### Custom Formats with SCSS
+
+Customize any Quarto theme with SCSS:
+
+```{r}
+#| eval: false
+
+custom_scss <- '
+/*-- scss:defaults --*/
+$body-bg: #fafafa;
+$body-color: #2c3e50;
+$link-color: #2980b9;
+$font-size-base: 1.05rem;
+$code-bg: #ecf0f1;
+$code-color: #c0392b;
+
+/*-- scss:rules --*/
+h1, h2, h3 {
+  color: #2c3e50;
+  font-weight: 600;
+  border-bottom: 2px solid #3498db;
+  padding-bottom: 0.3em;
+}
+
+.callout-note {
+  border-left-color: #2980b9;
+}
+
+.callout-warning {
+  border-left-color: #e67e22;
+}
+'
+cat(custom_scss)
+```
+
+Reference in YAML:
+
+````{verbatim}
+format:
+  html:
+    theme: [cosmo, custom.scss]
+````
+
+The array syntax applies the base theme first, then your overrides.
+
+### Your Turn: Custom Theme
+
+::: {.callout-caution title="Your Turn"}
+Write an SCSS file that creates a dark academic theme:
+
+- Dark background (#1a1a2e)
+- Light text (#e0e0e0)
+- Gold accents for headings (#f39c12)
+- Monospace code with green text (#2ecc71) on dark background (#0d0d1a)
+
+```{r}
+#| eval: false
+
+dark_theme <- '
+/*-- scss:defaults --*/
+# Your variables here
+
+/*-- scss:rules --*/
+# Your custom rules here
+'
+cat(dark_theme)
+```
+:::
+
+### Batch Rendering Parameterized Documents
+
+Generate multiple reports from one template:
+
+```{r}
+#| eval: false
+
+# Template: report-template.qmd has params$cyl
+cyl_values <- c(4, 6, 8)
+
+for (cyl in cyl_values) {
+  quarto::quarto_render(
+    input = "report-template.qmd",
+    output_file = paste0("report-", cyl, "-cyl.html"),
+    execute_params = list(cyl = cyl)
+  )
+}
+# Produces: report-4-cyl.html, report-6-cyl.html, report-8-cyl.html
+```
+
+The template uses `params$cyl` to filter data and generate customized content. One source file, multiple outputs.
+
+::: {.callout-warning title="Common Mistake"}
+Forgetting to use `params$variable` inside the template:
+
+Wrong:
+```{r}
+#| eval: false
+# Hardcoded value in the template:
+filtered <- mtcars[mtcars$cyl == 4, ]
+```
+
+Right:
+```{r}
+#| eval: false
+# Using the parameter:
+filtered <- mtcars[mtcars$cyl == params$cyl, ]
+```
+
+If you hardcode values, every rendered version will show the same data regardless of parameters.
+:::
+
+### Your Turn: Batch Rendering Plan
+
+::: {.callout-caution title="Your Turn"}
+Design a parameterized report template for the `iris` dataset. The parameter should be `species`. Write:
+
+1. The YAML front matter with the parameter
+2. The R code that filters by `params$species`
+3. The loop that renders one report per species
+
+```{r}
+#| eval: false
+
+# 1. YAML:
+yaml_header <- '
+---
+title: "Iris Species Report"
+params:
+  species: "setosa"
+format: html
+---
+'
+
+# 2. Template code:
+template_code <- '
+filtered <- iris[iris$Species == params$species, ]
+summary(filtered)
+plot(filtered$Sepal.Length, filtered$Petal.Length)
+'
+
+# 3. Rendering loop:
+species_list <- c("setosa", "versicolor", "virginica")
+for (sp in species_list) {
+  # quarto::quarto_render(
+  #   "iris-report.qmd",
+  #   output_file = paste0("iris-", sp, ".html"),
+  #   execute_params = list(species = sp)
+  # )
+}
+cat(yaml_header)
+```
+:::
+
+## Part 3: Publishing Workflows
+
+### Publishing Options
+
+| Platform | Cost | Setup | Best For |
+|----------|------|-------|----------|
+| Quarto Pub | Free | Minimal | Quick sharing, class projects |
+| GitHub Pages | Free | Moderate | Portfolios, open source |
+| Netlify | Free tier | Moderate | Professional sites |
+| Posit Connect | Paid | Complex | Enterprise, authentication |
+
+### Publishing to Quarto Pub
+
+The fastest way to share your work:
+
+```{r}
+#| eval: false
+
+# In terminal:
+# quarto publish quarto-pub
+
+# First time: prompts for account creation
+# Subsequent: updates existing publication
+
+# Result: https://username.quarto.pub/document-name/
+```
+
+Quarto Pub is public-only with 100 MB storage. Good enough for most student projects.
+
+### Publishing to GitHub Pages
+
+Two approaches:
+
+**Approach 1: Render locally, push `docs/`**
+
+````{verbatim}
+# _quarto.yml
+project:
+  type: website
+  output-dir: docs
+````
+
+Push to GitHub, enable Pages from `docs/` in repo settings.
+
+**Approach 2: GitHub Actions automation**
+
+````{verbatim}
+# .github/workflows/publish.yml
+on:
+  push:
+    branches: main
+
+jobs:
+  build-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: quarto-dev/quarto-actions/setup@v2
+      - uses: quarto-dev/quarto-actions/render@v2
+      - uses: quarto-dev/quarto-actions/publish@v2
+        with:
+          target: gh-pages
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+````
+
+### Your Turn: Publishing Plan
+
+::: {.callout-caution title="Your Turn"}
+Choose a publishing platform for your course portfolio. Write:
+
+1. Your chosen platform and why
+2. The `_quarto.yml` configuration for your site
+3. The steps to publish (in order)
+
+```{r}
+#| eval: false
+
+# 1. Platform choice:
+# I chose: ___
+# Because: ___
+
+# 2. _quarto.yml:
+config <- '
+project:
+  type: website
+  # your config
+'
+
+# 3. Publishing steps:
+steps <- c(
+  "Step 1: ...",
+  "Step 2: ...",
+  "Step 3: ..."
+)
+cat(paste(steps, collapse = "\n"))
+```
+:::
+
+### Freeze for Performance
+
+For websites and blogs, `freeze` controls when code re-executes:
+
+````{verbatim}
+# _quarto.yml
+execute:
+  freeze: auto    # re-execute only when source changes
+````
+
+- `freeze: true` — never re-execute
+- `freeze: auto` — re-execute only when source `.qmd` changes
+- `freeze: false` — always re-execute (default)
+
+Cached results live in `_freeze/`. Always commit this directory to Git.
+
+### Your Turn: Blog Configuration
+
+::: {.callout-caution title="Your Turn"}
+Write the complete `_quarto.yml` for a data science blog with:
+
+- Website type with navbar (Blog, About, GitHub link)
+- Flatly/darkly theme toggle
+- Freeze set to auto
+- RSS feed enabled on the listing page
+- Code folding enabled
+
+```{r}
+#| eval: false
+
+blog_config <- '
+project:
+  type: website
+  output-dir: _site
+
+website:
+  title: "Your Blog Name"
+  # Complete the configuration
+
+format:
+  html:
+    # Complete the format options
+
+execute:
+  # Complete execution options
+'
+cat(blog_config)
+```
+:::
+
+### SEO and Social Sharing
+
+Help search engines and social media display your content:
+
+````{verbatim}
+---
+title: "My Analysis"
+description: "A short summary for search engines and social cards"
+author:
+  - name: "Your Name"
+    url: https://yoursite.com
+date: "2024-03-15"
+categories: [R, analysis]
+image: "thumbnail.png"
+open-graph: true
+twitter-card: true
+---
+````
+
+`open-graph` and `twitter-card` generate metadata for social media preview cards. `description` and `image` control what appears in those cards.
+
+::: {.callout-warning title="Common Mistake"}
+Forgetting to commit `_freeze/` to Git:
+
+```{r}
+#| eval: false
+
+# If _freeze/ is in .gitignore:
+# - GitHub Actions has no cached results
+# - Every page re-executes on every build
+# - Builds are slow and may fail
+
+# Solution: make sure _freeze/ is NOT in .gitignore
+# Commit it alongside your source files
+```
+:::
+
+### Your Turn: Complete Publishing Workflow
+
+::: {.callout-caution title="Your Turn"}
+Write out the complete sequence of commands to:
+
+1. Create a new Quarto blog project
+2. Write a blog post with R code and a ggplot
+3. Preview locally
+4. Initialize a Git repository
+5. Push to GitHub
+6. Publish to GitHub Pages
+
+```{r}
+#| eval: false
+
+workflow <- '
+# Step 1: Create project
+# quarto create project website my-blog
+
+# Step 2: Write post
+# mkdir posts/2024-first-post
+# Create posts/2024-first-post/index.qmd with your content
+
+# Step 3: Preview
+# quarto preview
+
+# Step 4: Git setup
+# git init
+# git add -A
+# git commit -m "Initial blog"
+
+# Step 5: Push to GitHub
+# git remote add origin https://github.com/you/my-blog.git
+# git push -u origin main
+
+# Step 6: Publish
+# quarto publish gh-pages
+'
+cat(workflow)
+```
+:::
+
+::: {.callout-tip title="Challenge"}
+Design a complete course website that includes:
+
+1. A home page with course overview
+2. A sidebar with links to each session (Sessions 1-15)
+3. Each session page has slides (embedded or linked) and workbook content
+4. An about page with instructor info
+5. A blog section for announcements
+6. Freeze enabled for performance
+7. Published to GitHub Pages
+
+Write the `_quarto.yml`, directory structure, and at least one session page.
+:::
+
+## Session Synthesis
+
+### Connect the Dots
+
+::: {.callout-important title="Synthesis Exercise"}
+Build a complete publishing workflow for a data analysis project:
+
+1. Create a parameterized report template that analyzes one variable from `mtcars`
+2. Use `results: asis` to programmatically generate section headings
+3. Include labeled, cross-referenceable figures and tables
+4. Write the SCSS for a custom theme
+5. Write the batch rendering loop for all numeric columns
+6. Write the `_quarto.yml` to publish as a website with GitHub Pages
+7. Include freeze configuration
+
+Deliver all components:
+
+```{r}
+#| eval: false
+
+# 1. Report template YAML:
+template_yaml <- '
+---
+title: "mtcars Variable Report"
+params:
+  variable: "mpg"
+format:
+  html:
+    theme: [cosmo, custom.scss]
+    toc: true
+execute:
+  freeze: auto
+---
+'
+
+# 2. Template body with results: asis, labeled figures, tables
+# 3. custom.scss content
+# 4. Batch rendering loop
+# 5. _quarto.yml for website
+# 6. GitHub Actions workflow
+
+cat(template_yaml)
+```
+:::
+
+### Key Takeaways
+
+1. `results: asis` turns R output into raw markdown for dynamic content generation
+2. Cross-references need correct prefixes: `fig-` for figures, `tbl-` for tables
+3. Conditional content with profiles creates student/instructor versions from one source
+4. Extensions install per-project and add shortcodes, filters, or journal formats
+5. `freeze: auto` caches computation results so blogs render fast
+6. Commit `_freeze/` to version control or builds will re-execute everything
+
+### Prepare for Next Session
+
+Next session covers professional practices:
+
+- Project organization with `here` package and `renv`
+- Debugging and profiling in Positron
+- Code style with tidyverse style guide, `lintr`, and `styler`
+
+Before next session:
+
+- Publish at least one document to Quarto Pub or GitHub Pages
+- Install the `here` and `renv` packages: `install.packages(c("here", "renv"))`
+- Read the tidyverse style guide at <https://style.tidyverse.org/>

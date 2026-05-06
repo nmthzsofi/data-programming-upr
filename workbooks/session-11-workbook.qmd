@@ -1,0 +1,756 @@
+---
+title: "Session 11: Quarto Foundations"
+subtitle: "R Programming Workbook"
+author: "R Programming Course"
+date: today
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    toc-location: left
+    code-fold: show
+    code-tools: true
+    code-overflow: wrap
+    theme: cosmo
+    self-contained: true
+execute:
+  echo: true
+  warning: false
+  message: false
+---
+
+::: {.callout-note title="Learning Objectives"}
+By the end of this session you will be able to:
+
+1. Write YAML headers to configure Quarto documents
+2. Use Markdown for text formatting, lists, links, and images
+3. Add and configure code chunks with hashpipe options
+4. Use inline code to embed dynamic values in prose
+5. Render documents to HTML, PDF, and Word formats
+6. Create parameterized reports
+7. Use cross-references for figures, tables, and sections
+8. Add citations and bibliographies
+:::
+
+```{r}
+#| label: setup
+library(dplyr)
+library(ggplot2)
+```
+
+## Part 1: Quarto Basics
+
+### The Three Parts of a .qmd File
+
+Every Quarto document has three components:
+
+**1. YAML header** (between `---` lines):
+
+```yaml
+---
+title: "My Report"
+author: "Your Name"
+date: today
+format: html
+---
+```
+
+**2. Markdown prose:**
+
+```markdown
+## Introduction
+
+This report covers **important findings**.
+```
+
+**3. Code chunks:**
+
+````markdown
+```{r}
+#| label: my-calculation
+1 + 1
+```
+````
+
+### YAML Configuration
+
+The YAML header controls document behavior. Here is a fully-featured HTML configuration:
+
+```yaml
+---
+title: "Analysis Report"
+author: "Data Team"
+date: today
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    toc-location: left
+    code-fold: true
+    code-tools: true
+    theme: cosmo
+    self-contained: true
+execute:
+  echo: true
+  warning: false
+  message: false
+---
+```
+
+Key points:
+
+- Indentation uses 2 spaces (not tabs)
+- `format:` with a sub-key (like `html:`) enables format-specific options
+- `execute:` sets default chunk options for the whole document
+- `date: today` inserts the current date automatically
+
+### Code Chunk Options
+
+Options go inside the chunk using `#|` syntax:
+
+```{r}
+#| label: demo-chunk
+#| echo: true
+#| fig-width: 6
+#| fig-height: 4
+#| fig-cap: "A simple scatter plot"
+plot(mtcars$wt, mtcars$mpg, pch = 19, col = "steelblue",
+     xlab = "Weight", ylab = "MPG")
+```
+
+Common options:
+
+- `echo: true/false` -- show or hide the code
+- `eval: true/false` -- run or skip the code
+- `include: false` -- run but hide everything (useful for setup chunks)
+- `output: false` -- run but hide just the output
+- `code-fold: true` -- make code collapsible
+
+### Inline Code
+
+Embed R results in your prose:
+
+The mtcars dataset has `r nrow(mtcars)` observations and `r ncol(mtcars)` variables.
+The average MPG is `r round(mean(mtcars$mpg), 1)`.
+
+The syntax is a backtick, the letter r, a space, then your R expression, then a closing backtick.
+
+### Markdown Formatting Reference
+
+```{r}
+#| echo: false
+#| output: asis
+cat("
+| Syntax | Result |
+|--------|--------|
+| `**bold**` | **bold** |
+| `*italic*` | *italic* |
+| `~~strike~~` | ~~strike~~ |
+| `` `code` `` | `code` |
+| `[text](url)` | link |
+| `![alt](path)` | image |
+| `> quote` | blockquote |
+| `---` | horizontal rule |
+")
+```
+
+### Your Turn: Exercise 1
+
+Create a mini Quarto document (in a new file) with:
+
+- A title and author in the YAML
+- An introduction paragraph using Markdown
+- A code chunk that computes the median horsepower of mtcars
+- An inline code expression that states the result in a sentence
+
+Write the content below as if it were in a .qmd file:
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+# YAML would be:
+# ---
+# title: "mtcars Quick Look"
+# author: "Your Name"
+# date: today
+# format: html
+# ---
+
+# Then in a code chunk:
+median_hp <- median(mtcars$hp)
+median_hp
+
+# Inline code in prose would be:
+# The median horsepower is `r median(mtcars$hp)`.
+```
+
+### Your Turn: Exercise 2
+
+What chunk options would you use for each scenario?
+
+1. A setup chunk that loads libraries but should not show any code or output
+2. A chunk that shows code and output (default behavior)
+3. A chunk where the code is hidden but the plot is visible
+4. A chunk that shows code but does not actually run it
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+# 1. Setup chunk: #| include: false
+# 2. Default: no special options needed (echo: true is the default)
+# 3. Hidden code, visible plot: #| echo: false
+# 4. Show but don't run: #| eval: false
+```
+
+### Your Turn: Exercise 3
+
+Write a chunk that creates a summary table of mtcars grouped by `cyl`, showing count, mean mpg, and mean hp. Use `knitr::kable()` to display it.
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+mtcars |>
+  summarize(
+    count = n(),
+    avg_mpg = round(mean(mpg), 1),
+    avg_hp = round(mean(hp), 0),
+    .by = cyl
+  ) |>
+  knitr::kable()
+```
+
+::: {.callout-warning title="Common Mistake"}
+Forgetting that YAML is indentation-sensitive:
+
+```yaml
+# WRONG
+format:
+html:
+toc: true
+
+# RIGHT
+format:
+  html:
+    toc: true
+```
+
+Each level needs exactly 2 spaces of indentation.
+:::
+
+## Part 2: Output Formats
+
+### HTML Configuration
+
+HTML is the most feature-rich format:
+
+```yaml
+format:
+  html:
+    toc: true
+    toc-location: left    # left, right, body
+    code-fold: true        # collapsible code
+    code-tools: true       # code menu in header
+    theme: cosmo           # Bootswatch theme
+    self-contained: true   # single file output
+```
+
+Available themes: default, cerulean, cosmo, darkly, flatly, journal, litera, lumen, lux, materia, minty, morph, pulse, quartz, sandstone, simplex, sketchy, slate, solar, spacelab, superhero, united, vapor, yeti, zephyr.
+
+### Tabsets (HTML Only)
+
+::: {.panel-tabset}
+## Code
+```{r}
+mtcars |>
+  summarize(avg_mpg = mean(mpg), .by = cyl)
+```
+
+## Plot
+```{r}
+#| fig-width: 6
+#| fig-height: 4
+ggplot(mtcars, aes(x = factor(cyl), y = mpg)) +
+  geom_boxplot(fill = "steelblue") +
+  theme_minimal()
+```
+
+## Raw Data
+```{r}
+head(mtcars, 5)
+```
+:::
+
+Tabsets use the `::: {.panel-tabset}` div with `##` for each tab.
+
+### PDF Requirements
+
+PDF output needs LaTeX. Install it once:
+
+```bash
+quarto install tinytex
+```
+
+```yaml
+format:
+  pdf:
+    toc: true
+    number-sections: true
+    documentclass: article
+    papersize: a4
+    colorlinks: true
+    geometry:
+      - margin=1in
+```
+
+Not all HTML features work in PDF. Tabsets, interactive tables, and code-fold do not translate to PDF.
+
+### Word Output
+
+```yaml
+format:
+  docx:
+    toc: true
+    number-sections: true
+```
+
+For custom styling, create a reference document:
+
+```yaml
+format:
+  docx:
+    reference-doc: my-template.docx
+```
+
+Edit the styles in the template Word file, then Quarto applies them.
+
+### Multiple Formats
+
+```yaml
+format:
+  html:
+    toc: true
+    theme: cosmo
+  pdf:
+    toc: true
+  docx:
+    toc: true
+```
+
+Render all: `quarto render report.qmd`
+Render one: `quarto render report.qmd --to html`
+
+### Your Turn: Exercise 4
+
+Write the YAML header for a document that:
+
+- Has a title "Quarterly Report" and author "Analytics Team"
+- Outputs to HTML with the flatly theme
+- Has a table of contents on the left
+- Makes code collapsible by default
+- Hides warnings and messages
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+# ---
+# title: "Quarterly Report"
+# author: "Analytics Team"
+# date: today
+# format:
+#   html:
+#     toc: true
+#     toc-location: left
+#     code-fold: true
+#     theme: flatly
+# execute:
+#   warning: false
+#   message: false
+# ---
+cat("See solution above (YAML cannot be executed as R code)")
+```
+
+### Your Turn: Exercise 5
+
+Create a tabset with three tabs: "Summary", "Distribution", and "Top 5". Use the mtcars dataset.
+
+- Summary tab: show a kable table of mean mpg by number of gears
+- Distribution tab: histogram of mpg
+- Top 5 tab: the 5 cars with highest mpg
+
+Write this as if it were in a .qmd file. (In this workbook, you can create an actual tabset.)
+
+::: {.panel-tabset}
+## Summary
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+mtcars |>
+  summarize(avg_mpg = round(mean(mpg), 1), n = n(), .by = gear) |>
+  knitr::kable()
+```
+
+## Distribution
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+ggplot(mtcars, aes(x = mpg)) +
+  geom_histogram(bins = 10, fill = "steelblue", color = "white") +
+  theme_minimal() +
+  labs(title = "Distribution of MPG")
+```
+
+## Top 5
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+mtcars |>
+  tibble::rownames_to_column("car") |>
+  slice_max(mpg, n = 5) |>
+  select(car, mpg, cyl, wt) |>
+  knitr::kable()
+```
+:::
+
+::: {.callout-warning title="Common Mistake"}
+Trying to use `code-fold: true` in PDF output:
+
+```yaml
+format:
+  pdf:
+    code-fold: true  # This does NOT work in PDF
+```
+
+Code folding is an HTML-only feature. In PDF, use `echo: false` to hide code entirely.
+:::
+
+## Part 3: Parameters, Cross-References, Citations
+
+### Parameterized Reports
+
+Define parameters in YAML:
+
+```yaml
+---
+title: "Sales Report"
+params:
+  region: "North"
+  year: 2024
+format: html
+---
+```
+
+Use them in code:
+
+```{r}
+# Simulating params (in a real parameterized doc, these come from YAML)
+params <- list(region = "North", year = 2024)
+
+cat("Report for:", params$region, "region,", params$year)
+```
+
+Render with different values:
+
+```bash
+quarto render report.qmd -P region:South -P year:2024
+```
+
+### Cross-References
+
+Cross-references require two things: a labeled element and a reference to it.
+
+**Figures:**
+
+```{r}
+#| label: fig-mpg-wt
+#| fig-cap: "Relationship between weight and fuel efficiency"
+ggplot(mtcars, aes(x = wt, y = mpg)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE) +
+  theme_minimal()
+```
+
+Reference it in text: As shown in @fig-mpg-wt, heavier cars tend to have lower MPG.
+
+**Tables:**
+
+```{r}
+#| label: tbl-cyl-summary
+#| tbl-cap: "Average metrics by cylinder count"
+mtcars |>
+  summarize(
+    avg_mpg = round(mean(mpg), 1),
+    avg_hp = round(mean(hp), 0),
+    .by = cyl
+  ) |>
+  knitr::kable()
+```
+
+Reference: @tbl-cyl-summary shows the breakdown by cylinder count.
+
+### Label Prefixes for Cross-References
+
+| Prefix | Element | Reference |
+|--------|---------|-----------|
+| `fig-` | Figure | `@fig-name` |
+| `tbl-` | Table | `@tbl-name` |
+| `sec-` | Section | `@sec-name` |
+| `eq-` | Equation | `@eq-name` |
+
+The prefix is required. Without it, the cross-reference will not resolve.
+
+### Citations
+
+Create a `references.bib` file with BibTeX entries:
+
+```
+@article{wickham2014tidy,
+  title={Tidy Data},
+  author={Wickham, Hadley},
+  journal={Journal of Statistical Software},
+  volume={59},
+  number={10},
+  year={2014}
+}
+
+@book{wickham2023r4ds,
+  title={R for Data Science},
+  author={Wickham, Hadley and Cetinkaya-Rundel, Mine and Grolemund, Garrett},
+  year={2023},
+  publisher={O'Reilly Media}
+}
+```
+
+Add to YAML:
+
+```yaml
+bibliography: references.bib
+```
+
+Use in text:
+
+- `[@wickham2014tidy]` renders as (Wickham 2014)
+- `@wickham2014tidy` renders as Wickham (2014)
+- `[@wickham2014tidy; @wickham2023r4ds]` for multiple citations
+
+### Your Turn: Exercise 6
+
+Write the YAML for a parameterized report that accepts:
+
+- `product` (default: "Widget")
+- `start_date` (default: "2024-01-01")
+- `end_date` (default: "2024-06-30")
+
+Then write R code that would filter the sales data using these parameters.
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+# YAML:
+# ---
+# title: "Product Sales Report"
+# params:
+#   product: "Widget"
+#   start_date: "2024-01-01"
+#   end_date: "2024-06-30"
+# format: html
+# ---
+
+# R code in the document:
+params <- list(product = "Widget", start_date = "2024-01-01", end_date = "2024-06-30")
+
+set.seed(42)
+sales <- tibble(
+  date = rep(seq(as.Date("2024-01-01"), as.Date("2024-12-31"), by = "day"), 3),
+  region = rep(c("North", "South", "West"), each = 366),
+  product = sample(c("Widget", "Gadget", "Doohickey"), 366 * 3, replace = TRUE),
+  units = rpois(366 * 3, lambda = 50),
+  revenue = round(runif(366 * 3, 10, 500), 2)
+)
+
+filtered <- sales |>
+  filter(
+    product == params$product,
+    date >= as.Date(params$start_date),
+    date <= as.Date(params$end_date)
+  )
+
+nrow(filtered)
+```
+
+### Your Turn: Exercise 7
+
+Write a code chunk with the correct label and caption so that it can be cross-referenced as `@fig-revenue-dist`. The chunk should produce a histogram of the sales revenue.
+
+```{r}
+#| label: fig-revenue-dist
+#| fig-cap: "Distribution of daily revenue across all regions"
+#| code-fold: true
+#| code-summary: "Solution"
+set.seed(42)
+sales <- tibble(
+  revenue = round(runif(1000, 10, 500), 2)
+)
+
+ggplot(sales, aes(x = revenue)) +
+  geom_histogram(bins = 30, fill = "steelblue", color = "white") +
+  labs(x = "Revenue ($)", y = "Count") +
+  theme_minimal()
+```
+
+See @fig-revenue-dist for the revenue distribution.
+
+### Your Turn: Exercise 8
+
+Write a BibTeX entry for a hypothetical article:
+
+- Author: Jane Smith
+- Title: "Modern Data Analysis with R"
+- Journal: Data Science Review
+- Year: 2024
+
+Then show how you would cite it in text.
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+# BibTeX entry (in references.bib):
+# @article{smith2024modern,
+#   title={Modern Data Analysis with R},
+#   author={Smith, Jane},
+#   journal={Data Science Review},
+#   year={2024}
+# }
+
+# In-text citation: [@smith2024modern]
+# Narrative citation: @smith2024modern
+cat("See solution above")
+```
+
+### Think About It
+
+You have a monthly report that your team generates for 12 different clients. Each client gets the same analysis but with their own data. How would you use Quarto parameters and purrr to automate this? What would the rendering script look like?
+
+::: {.callout-tip title="Challenge"}
+Design a complete YAML header for a document that:
+
+- Has title, subtitle, author, and date
+- Outputs to both HTML and PDF
+- HTML: cosmo theme, left TOC, code-fold, self-contained
+- PDF: A4 paper, numbered sections, 1-inch margins
+- Has a bibliography file
+- Uses APA citation style
+- Hides warnings and messages globally
+- Has two parameters: dataset_name and confidence_level
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+cat('---
+title: "Statistical Analysis Report"
+subtitle: "Automated Report"
+author: "Analytics Team"
+date: today
+bibliography: references.bib
+csl: apa.csl
+params:
+  dataset_name: "mtcars"
+  confidence_level: 0.95
+format:
+  html:
+    toc: true
+    toc-location: left
+    code-fold: true
+    theme: cosmo
+    self-contained: true
+  pdf:
+    toc: true
+    number-sections: true
+    papersize: a4
+    geometry:
+      - margin=1in
+execute:
+  warning: false
+  message: false
+---')
+```
+:::
+
+## Session Synthesis
+
+### Connect the Dots
+
+Create a complete Quarto document outline (as R code producing the text) that:
+
+1. Has a proper YAML header with HTML format, TOC, and cosmo theme
+2. Includes a setup chunk that loads dplyr and ggplot2
+3. Has an introduction section with inline code stating the mtcars row count
+4. Has a results section with a cross-referenceable figure and table
+5. Uses at least one callout block
+
+```{r}
+#| code-fold: true
+#| code-summary: "Solution"
+cat('---
+title: "mtcars Analysis"
+author: "Student Name"
+date: today
+format:
+  html:
+    toc: true
+    theme: cosmo
+    code-fold: true
+execute:
+  warning: false
+---
+
+```{r}
+#| label: setup
+#| include: false
+library(dplyr)
+library(ggplot2)
+```
+
+## Introduction
+
+This report analyzes the mtcars dataset, which contains `r nrow(mtcars)` observations
+of `r ncol(mtcars)` variables.
+
+## Results
+
+@fig-mpg-dist shows the distribution of fuel efficiency.
+
+```{r}
+#| label: fig-mpg-dist
+#| fig-cap: "Distribution of miles per gallon"
+ggplot(mtcars, aes(x = mpg)) +
+  geom_histogram(bins = 10, fill = "steelblue") +
+  theme_minimal()
+```
+
+@tbl-summary breaks down averages by cylinder count.
+
+```{r}
+#| label: tbl-summary
+#| tbl-cap: "Average metrics by cylinder count"
+mtcars |>
+  summarize(mpg = mean(mpg), hp = mean(hp), .by = cyl) |>
+  knitr::kable(digits = 1)
+```
+
+::: {.callout-note}
+Six-cylinder cars balance power and efficiency.
+:::
+')
+```
+
+### Key Takeaways
+
+- Quarto documents combine YAML (configuration), Markdown (prose), and code chunks (analysis).
+- Chunk options use `#|` hashpipe syntax. Key options: echo, eval, include, fig-cap, label.
+- One .qmd file can render to HTML, PDF, and Word.
+- Parameters make reports reusable. Cross-references keep them maintainable.
+- Citations use BibTeX + the `bibliography` YAML field.
+
+### Prepare for Next Session
+
+Session 12 covers Quarto presentations (Reveal.js), dashboards, and websites. Think about a topic you could present in 5-10 slides using data and code. You will build a mini presentation during the session.
