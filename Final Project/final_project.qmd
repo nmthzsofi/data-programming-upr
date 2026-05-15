@@ -1,0 +1,400 @@
+---
+title: "Exploring the HAM10000 Dermatoscopic Dataset"
+subtitle: "A Descriptive Analysis of Skin Lesion Metadata and Image Brightness"
+author: "Zsofia Nemeth"
+date: today
+bibliography: references.bib
+csl: https://raw.githubusercontent.com/citation-style-language/styles/master/apa.csl
+format:
+  html:
+    embed-resources: true
+    toc: true
+    toc-depth: 2
+    theme: cosmo
+    css: style.css
+    code-fold: true
+    code-summary: "Show code"
+---
+
+## Introduction / Presentation and description of the problem
+
+Skin cancer is one of the most common forms of cancer worldwide. Early and accurate diagnosis is critical, as the prognosis for malignant conditions such as melanoma deteriorates substantially with delayed treatment. Dermatoscopy is a non-invasive imaging technique that uses a magnifying lens and polarised light to visualise skin structures below the surface, allowing trained clinicians to examine pigmentation patterns, vascular features, and lesion borders in detail.
+
+The HAM10000 dataset (*Human Against Machine with 10,000 training images*) is a large, publicly available collection of dermatoscopic images compiled by @tschandl2018. It covers seven diagnostic categories across 10,015 cases, and includes both image files and structured metadata recording the diagnosis, patient demographics, body localisation, and the method used to confirm each diagnosis.
+
+This analysis focuses on the structured metadata and a flattened pixel representation of the images. The aim is to characterise the dataset's composition, identify patterns in the demographic and clinical variables, and examine whether image-level properties such as mean pixel brightness differ across diagnostic groups. All analyses are conducted in R [@rcoreteam2024] using the tidyverse suite of packages [@wickham2019].
+
+---
+
+## Presentation of the data
+
+```{r setup}
+#| warning: false
+#| message: false
+
+library(tidyverse)
+library(knitr)
+
+metadata <- read_csv("data/HAM10000_metadata.csv")
+```
+
+The first six rows of the dataset are shown below to give an initial sense of its structure:
+
+```{r head}
+head(metadata)
+```
+
+The `glimpse()` function provides a compact summary of variable types and sample values:
+
+```{r glimpse}
+glimpse(metadata)
+```
+
+### Variable Descriptions
+
+The dataset contains 10,015 observations and seven variables. The table below describes each variable.
+
+| Variable | Type | Description |
+|----------|------|-------------|
+| `lesion_id` | Character | Unique identifier for each distinct skin lesion. One lesion may appear across multiple images. |
+| `image_id` | Character | Filename identifier of the associated dermatoscopic image. |
+| `dx` | Character | Abbreviated diagnosis code. See the reference table below. |
+| `dx_type` | Character | Abbreviated code for the method used to confirm the diagnosis. See the reference table below. |
+| `age` | Numeric | Patient age in years at the time of image acquisition. 57 values are missing (`NA`). |
+| `sex` | Character | Patient sex: `male`, `female`, or `unknown` (57 cases). |
+| `localization` | Character | Anatomical body region where the lesion is located. |
+
+### Abbreviation Reference: `dx`
+
+| Code | Full Name | Description |
+|------|-----------|-------------|
+| `nv` | Melanocytic Nevus | A common benign mole arising from pigment-producing cells. |
+| `mel` | Melanoma | A malignant tumour of melanocytes. One of the most dangerous skin cancers. |
+| `bkl` | Benign Keratosis-Like Lesion | Encompasses solar lentigines, seborrheic keratoses, and lichen-planus-like keratoses — all benign. |
+| `bcc` | Basal Cell Carcinoma | The most common skin cancer; grows slowly and rarely metastasises. |
+| `akiec` | Actinic Keratosis / Intraepithelial Carcinoma | A sun-induced pre-cancerous skin patch. |
+| `vasc` | Vascular Lesion | Benign lesions of vascular origin, including angiomas and pyogenic granulomas. |
+| `df` | Dermatofibroma | A common benign fibrous nodule in the skin. |
+
+### Abbreviation Reference: `dx_type`
+
+| Code | Full Name | Description |
+|------|-----------|-------------|
+| `histo` | Histopathology | Microscopic tissue biopsy examination — the diagnostic gold standard. |
+| `follow_up` | Clinical Follow-Up | Diagnosis confirmed through longitudinal observation of a stable lesion. |
+| `consensus` | Expert Consensus | Agreement among multiple dermatologists based on dermoscopic examination. |
+| `confocal` | Reflectance Confocal Microscopy | Non-invasive optical imaging providing near-histological resolution. |
+
+---
+
+## Transformation of data
+
+Two user-defined functions are defined here and reused throughout the analysis to translate abbreviated codes into human-readable labels.
+
+```{r user-functions}
+# Translates a dx code (or vector of codes) to its full diagnostic name
+dx_fullname <- function(code) {
+  labels <- c(
+    nv    = "Melanocytic Nevus",
+    mel   = "Melanoma",
+    bkl   = "Benign Keratosis-Like Lesion",
+    bcc   = "Basal Cell Carcinoma",
+    akiec = "Actinic Keratosis / IC",
+    vasc  = "Vascular Lesion",
+    df    = "Dermatofibroma"
+  )
+  unname(labels[code])
+}
+
+# Translates a dx_type code (or vector of codes) to its full method name
+dx_type_fullname <- function(code) {
+  labels <- c(
+    histo     = "Histopathology",
+    follow_up = "Clinical Follow-Up",
+    consensus = "Expert Consensus",
+    confocal  = "Confocal Microscopy"
+  )
+  unname(labels[code])
+}
+```
+
+### Table 1: Diagnosis Frequency Summary
+
+The first transformation groups the data by diagnosis, counts the number of cases in each category, and computes the percentage share. The `dx_fullname()` function is applied via `mutate()` to add a human-readable label column.
+
+```{r tbl-dx-summary}
+#| tbl-cap: "Table 1. Frequency and percentage distribution of the seven diagnostic categories in the HAM10000 dataset, ordered by case count."
+
+metadata |>
+  group_by(dx) |>
+  summarise(Count = n(), .groups = "drop") |>
+  mutate(
+    `Full Name`      = dx_fullname(dx),
+    `Percentage (%)` = round(Count / sum(Count) * 100, 1)
+  ) |>
+  arrange(desc(Count)) |>
+  select(Code = dx, `Full Name`, Count, `Percentage (%)`) |>
+  kable()
+```
+
+Melanocytic nevus accounts for 66.9% of all cases (n = 6,705). Melanoma and benign keratosis-like lesions each represent approximately 11% of the sample. The four remaining categories together account for fewer than 11%, with dermatofibroma (1.1%) and vascular lesions (1.4%) being the least represented. This pronounced imbalance reflects the natural prevalence of these conditions in clinical practice, where benign moles are far more common than rare malignant or vascular conditions.
+
+### Table 2: Diagnostic Confirmation Methods by Diagnosis Type
+
+The second transformation applies `group_by()` and `summarise()`, then reshapes the result with `pivot_wider()` to produce a cross-tabulation. Rows represent diagnostic categories; columns represent confirmation methods.
+
+```{r tbl-confirmation}
+#| tbl-cap: "Table 2. Cross-tabulation of diagnostic confirmation methods by diagnosis category. Cell values are case counts; the Total column sums each row."
+
+metadata |>
+  group_by(dx, dx_type) |>
+  summarise(n = n(), .groups = "drop") |>
+  pivot_wider(names_from = dx_type, values_from = n, values_fill = 0) |>
+  mutate(
+    `Full Name` = dx_fullname(dx),
+    Total       = rowSums(across(where(is.numeric)))
+  ) |>
+  arrange(desc(Total)) |>
+  select(Code = dx, `Full Name`, histo, follow_up, consensus, confocal, Total) |>
+  rename(
+    Histopathology        = histo,
+    `Clinical Follow-Up`  = follow_up,
+    `Expert Consensus`    = consensus,
+    `Confocal Microscopy` = confocal
+  ) |>
+  kable()
+```
+
+Melanoma, basal cell carcinoma, and actinic keratosis are confirmed exclusively through histopathology, indicating the highest level of diagnostic certainty. Nevus is confirmed by three different methods: clinical follow-up is the most frequent (n = 3,704), followed by histopathology (n = 2,498) and expert consensus (n = 503). Confocal microscopy is used only for a small subset of benign keratosis-like lesions (n = 69). This reflects real-world clinical practice: low-risk lesions assessed as benign are often monitored over time rather than biopsied.
+
+### Table 3: Mean Image Brightness by Diagnosis (Inner Join)
+
+The third transformation makes use of a second dataset: `hmnist_8_8_L.csv`, which contains flattened 8×8 grayscale pixel values for each image in the dataset [@kaggle2018]. The rows of this file correspond positionally to the rows of the metadata. A row identifier is added to both tables and they are combined using `inner_join()`. Mean pixel brightness is then computed per image and summarised by diagnosis.
+
+```{r tbl-brightness}
+#| tbl-cap: "Table 3. Mean pixel brightness of 8×8 grayscale image thumbnails, summarised by diagnostic category. Brightness is measured on a 0–255 scale. Results are ordered from highest to lowest mean brightness. Data obtained by joining the metadata with the hmnist_8_8_L pixel dataset on a shared row identifier."
+
+pixel_data <- read_csv("data/hmnist_8_8_L.csv", show_col_types = FALSE)
+
+brightness <- pixel_data |>
+  mutate(
+    row_id          = row_number(),
+    mean_brightness = rowMeans(across(starts_with("pixel")))
+  ) |>
+  select(row_id, mean_brightness)
+
+joined_data <- metadata |>
+  mutate(row_id = row_number()) |>
+  inner_join(brightness, by = "row_id")
+
+joined_data |>
+  group_by(dx) |>
+  summarise(
+    n      = n(),
+    mean_b = mean(mean_brightness),
+    sd_b   = sd(mean_brightness),
+    min_b  = min(mean_brightness),
+    max_b  = max(mean_brightness),
+    .groups = "drop"
+  ) |>
+  mutate(
+    `Full Name` = dx_fullname(dx),
+    mean_b = round(mean_b, 1),
+    sd_b   = round(sd_b, 1),
+    min_b  = round(min_b, 1),
+    max_b  = round(max_b, 1)
+  ) |>
+  arrange(desc(mean_b)) |>
+  select(
+    Code = dx, `Full Name`, n,
+    `Mean` = mean_b, `SD` = sd_b,
+    `Min` = min_b, `Max` = max_b
+  ) |>
+  kable()
+```
+
+Basal cell carcinoma (bcc) displays the highest mean image brightness (168.1), followed closely by dermatofibroma (df, 166.0) and vascular lesions (vasc, 164.8). Melanoma (mel, 150.5) and benign keratosis-like lesions (bkl, 151.7) show the lowest mean brightness. This is consistent with the visual properties of these conditions: basal cell carcinoma lesions often appear pale or pearlescent, whereas melanoma tends to exhibit darker pigmentation. The standard deviations (~15–19 across all groups) indicate substantial within-class variation in image appearance.
+
+---
+
+## Exploratory data analysis
+
+Five visualisations are produced with ggplot2 [@wickham2016], each using a different plot type to highlight a distinct aspect of the dataset.
+
+### Figure 1: Frequency Distribution of Diagnostic Categories
+
+```{r fig-bar}
+#| fig-cap: "Figure 1. Bar chart showing the number of cases per diagnostic category, ordered from most to least frequent. Count labels are shown above each bar."
+
+metadata |>
+  mutate(dx = fct_infreq(dx)) |>
+  ggplot(aes(x = dx, y = after_stat(count), fill = dx)) +
+  geom_bar(show.legend = FALSE) +
+  geom_text(
+    stat  = "count",
+    aes(label = after_stat(count)),
+    vjust = -0.4,
+    size  = 3.2
+  ) +
+  scale_fill_brewer(palette = "Blues", direction = -1) +
+  labs(
+    title = "Frequency Distribution of Diagnostic Categories",
+    x     = "Diagnosis Code",
+    y     = "Number of Cases"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.title         = element_text(face = "bold", colour = "#1a5276"),
+    panel.grid.major.x = element_blank()
+  )
+```
+
+The bar chart confirms the severe imbalance in the dataset. Nevus (nv) dwarfs all other categories with more than six times the cases of the second most frequent diagnosis. Melanoma (mel) and benign keratosis-like lesion (bkl) are roughly equal in frequency, followed by a steep drop to the remaining four categories. Dermatofibroma (df) and vascular lesion (vasc) together account for fewer than 260 cases combined.
+
+### Figure 2: Age Distribution by Diagnosis Type
+
+```{r fig-violin}
+#| fig-cap: "Figure 2. Violin plots showing the full distribution of patient age within each diagnostic category, ordered by median age. An embedded boxplot shows the median and interquartile range. Cases with missing age values (n = 57) are excluded."
+
+metadata |>
+  filter(!is.na(age), age > 0) |>
+  mutate(dx = reorder(dx, age, FUN = median)) |>
+  ggplot(aes(x = dx, y = age, fill = dx)) +
+  geom_violin(alpha = 0.65, show.legend = FALSE) +
+  geom_boxplot(width = 0.1, fill = "white", outlier.size = 0.6, show.legend = FALSE) +
+  coord_flip() +
+  scale_fill_brewer(palette = "Blues", direction = -1) +
+  labs(
+    title = "Age Distribution by Diagnosis Type",
+    x     = "Diagnosis Code",
+    y     = "Age (years)"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.title         = element_text(face = "bold", colour = "#1a5276"),
+    panel.grid.major.y = element_blank()
+  )
+```
+
+Clear age gradients are visible across diagnostic categories. Actinic keratosis (akiec) and basal cell carcinoma (bcc) are concentrated in the oldest age groups with medians near 70 years, reflecting their strong association with cumulative sun damage over a lifetime. Melanoma (mel) shows a broader distribution (median approximately 60 years), affecting a wider range of ages. Nevus (nv) has the lowest median (approximately 45 years) and the widest spread, consistent with its prevalence from childhood to old age. Dermatofibroma (df) is concentrated in the 40–60 year range.
+
+### Figure 3: Lesion Localisation by Diagnosis Type (Heatmap)
+
+```{r fig-heatmap}
+#| fig-cap: "Figure 3. Heatmap showing the number of cases for each combination of diagnosis code and anatomical body region. Higher counts appear in lighter yellow; zero or near-zero counts appear in dark purple. The plasma colour scale is perceptually uniform."
+
+metadata |>
+  group_by(dx, localization) |>
+  summarise(count = n(), .groups = "drop") |>
+  complete(dx, localization, fill = list(count = 0)) |>
+  ggplot(aes(x = localization, y = dx, fill = count)) +
+  geom_tile(colour = "white", linewidth = 0.35) +
+  scale_fill_viridis_c(name = "Count", option = "plasma") +
+  labs(
+    title = "Lesion Localisation by Diagnosis Type",
+    x     = "Body Region",
+    y     = "Diagnosis Code"
+  ) +
+  theme_minimal(base_size = 11) +
+  theme(
+    plot.title  = element_text(face = "bold", colour = "#1a5276"),
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 9),
+    panel.grid  = element_blank()
+  )
+```
+
+Nevus (nv) dominates nearly every body region, most prominently on the back and lower extremity. Benign keratosis-like lesions (bkl) show strong concentration on the back. Melanoma (mel) is notably frequent on the lower extremity relative to other diagnoses. Vascular lesions (vasc) show a restricted geographic spread, appearing primarily on the face and lower extremity. Several diagnosis–region combinations have zero or near-zero counts (dark tiles), highlighting that some conditions have marked anatomical specificity.
+
+### Figure 4: Mean Image Brightness by Diagnosis (Dot Plot with Error Bars)
+
+```{r fig-brightness}
+#| fig-cap: "Figure 4. Mean pixel brightness of 8×8 grayscale image thumbnails for each diagnostic category. Points show the mean; vertical lines extend one standard error of the mean above and below. Brightness is measured on a 0–255 scale. Data from the joined dataset produced in Table 3."
+
+joined_data |>
+  group_by(dx) |>
+  summarise(
+    mean_b = mean(mean_brightness),
+    se_b   = sd(mean_brightness) / sqrt(n()),
+    .groups = "drop"
+  ) |>
+  mutate(dx = reorder(dx, mean_b)) |>
+  ggplot(aes(x = dx, y = mean_b)) +
+  geom_segment(
+    aes(x = dx, xend = dx, y = mean_b - se_b, yend = mean_b + se_b),
+    colour = "#2e86c1", linewidth = 1
+  ) +
+  geom_point(colour = "#1a5276", size = 4) +
+  coord_flip() +
+  labs(
+    title = "Mean Image Brightness by Diagnosis Type",
+    x     = "Diagnosis Code",
+    y     = "Mean Pixel Brightness (0–255 scale)"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.title         = element_text(face = "bold", colour = "#1a5276"),
+    panel.grid.major.y = element_blank()
+  )
+```
+
+Basal cell carcinoma (bcc) displays the highest mean image brightness (168.1), closely followed by dermatofibroma (df, 166.0) and vascular lesions (vasc, 164.8). Melanoma (mel, 150.5) and benign keratosis-like lesions (bkl, 151.7) show the lowest mean brightness values. The differences between the highest and lowest groups span approximately 17 brightness units on a 0–255 scale. Basal cell carcinoma lesions tend to appear pale or pearlescent in dermoscopic images, which is consistent with their higher pixel brightness in greyscale thumbnails. Melanoma, by contrast, often exhibits darker pigmentation, consistent with its lower brightness values.
+
+### Figure 5: Lesion Localisation Frequency (Lollipop Chart)
+
+```{r fig-lollipop}
+#| fig-cap: "Figure 5. Lollipop chart showing the number of cases per anatomical body region, ordered by frequency. The percentage label at the end of each segment indicates the proportion of all cases in the dataset. Cases with unknown localisation (n = 234) are excluded."
+
+metadata |>
+  filter(localization != "unknown") |>
+  group_by(localization) |>
+  summarise(
+    count   = n(),
+    pct     = round(count / nrow(metadata) * 100, 1),
+    .groups = "drop"
+  ) |>
+  mutate(localization = fct_reorder(localization, count)) |>
+  ggplot(aes(x = localization, y = count)) +
+  geom_segment(
+    aes(x = localization, xend = localization, y = 0, yend = count),
+    colour = "#2e86c1", linewidth = 0.85
+  ) +
+  geom_point(aes(colour = count), size = 3.5, show.legend = FALSE) +
+  geom_text(aes(label = paste0(pct, "%")), hjust = -0.25, size = 3) +
+  scale_colour_gradient(low = "#aed6f1", high = "#1a5276") +
+  coord_flip(clip = "off") +
+  labs(
+    title = "Lesion Localisation Frequency Across Body Regions",
+    x     = "Body Region",
+    y     = "Number of Cases"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.title         = element_text(face = "bold", colour = "#1a5276"),
+    panel.grid.major.y = element_blank(),
+    plot.margin        = margin(5, 50, 5, 5)
+  )
+```
+
+The back (21.9%) and lower extremity (20.7%) are the two most frequently recorded body regions, together accounting for 42.6% of all cases. The trunk and upper extremity follow with 14.0% and 11.2% respectively. These four regions collectively represent approximately 68% of all cases. The least common sites are the acral region (0.1%), genital area (0.5%), and ear (0.6%). The concentration of lesions in sun-exposed areas such as the back and extremities is consistent with the role of cumulative ultraviolet radiation in the development of pigmented skin lesions.
+
+---
+
+## Interpretation / Conclusion
+
+This analysis characterised the HAM10000 dataset [@tschandl2018] across multiple dimensions using R [@rcoreteam2024] and its tidyverse [@wickham2019] tools: metadata exploration, cross-tabulation, dataset joining, and visualisation.
+
+**Distribution imbalance.** The most prominent structural feature of the dataset is the severe overrepresentation of melanocytic nevus, which accounts for 66.9% of cases. Any analysis that relies on the diagnosis label must account for this imbalance, as naive comparisons would be dominated by the nevus category.
+
+**Demographic patterns.** Age is strongly associated with diagnosis type. Conditions such as actinic keratosis and basal cell carcinoma predominantly affect older patients, consistent with their known link to cumulative sun damage. Melanoma spans a broader age range, while nevus is common at all ages. These age patterns suggest that demographic information is a meaningful contextual variable in the dataset.
+
+**Diagnostic certainty.** Not all diagnoses are confirmed with equal certainty. Malignant diagnoses are confirmed exclusively through histopathology, while many nevus cases rely on clinical follow-up or expert consensus. This asymmetry in diagnostic confidence is a relevant property of the dataset.
+
+**Image brightness.** The join of metadata with pixel-level image data revealed that different diagnostic categories have measurably different mean image brightness levels. Vascular and keratotic lesions produce brighter thumbnails on average, while melanoma tends to appear darker. This suggests that image-derived features carry diagnostic signal even at a coarse resolution.
+
+**Localisation.** Lesions are concentrated on the back and lower extremities, reflecting the influence of sun exposure on lesion development. Some categories show marked geographic specificity, as evident in the heatmap.
+
+Overall, the HAM10000 dataset is rich and heterogeneous. Its structural properties — including class imbalance, demographic gradients, variable diagnostic confirmation quality, and image-level variation — make it a complex but informative resource for the study of dermatoscopic skin lesions. Future work could leverage the full-resolution image data alongside the metadata for more detailed investigation.
+
+---
+
+## References

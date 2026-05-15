@@ -1,0 +1,147 @@
+/* ============================================================
+   HAM10000 Exploratory Data Analysis — Custom Stylesheet
+   ============================================================ */
+
+:root {
+  --primary:    #1a5276;
+  --accent:     #2e86c1;
+  --light-blue: #eaf2fb;
+  --pale-blue:  #d6eaf8;
+  --text:       #2c3e50;
+  --muted:      #5d6d7e;
+}
+
+/* ── Base typography ───────────────────────────────────────── */
+body {
+  font-family: 'Georgia', 'Times New Roman', serif;
+  color: var(--text);
+  line-height: 1.8;
+}
+
+/* ── Document title block ──────────────────────────────────── */
+.title {
+  color: var(--primary);
+  border-bottom: 3px solid var(--accent);
+  padding-bottom: 10px;
+}
+
+.subtitle, .author, .date {
+  color: var(--muted);
+}
+
+/* ── Section headings ──────────────────────────────────────── */
+h2 {
+  color: var(--primary);
+  border-left: 5px solid var(--accent);
+  padding-left: 14px;
+  margin-top: 2.4em;
+  font-size: 1.35em;
+}
+
+h3 {
+  color: #21618c;
+  margin-top: 1.6em;
+  font-size: 1.1em;
+}
+
+/* ── Table of contents ─────────────────────────────────────── */
+#TOC, nav#TOC, .sidebar nav {
+  font-size: 0.92em;
+}
+
+#TOC a, nav#TOC a {
+  color: var(--primary);
+  text-decoration: none;
+}
+
+#TOC a:hover, nav#TOC a:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+/* ── Tables ────────────────────────────────────────────────── */
+table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 1.4em 0;
+  font-size: 0.89em;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.07);
+}
+
+thead th {
+  background-color: var(--primary);
+  color: #ffffff;
+  padding: 10px 16px;
+  text-align: left;
+  font-weight: 600;
+  letter-spacing: 0.025em;
+}
+
+tbody tr:nth-child(even) {
+  background-color: var(--light-blue);
+}
+
+tbody tr:hover {
+  background-color: var(--pale-blue);
+  transition: background-color 0.12s;
+}
+
+tbody td {
+  padding: 8px 16px;
+  border-bottom: 1px solid #e5e8ec;
+}
+
+/* ── Figure and table captions ─────────────────────────────── */
+p.caption,
+.figure-caption,
+figcaption {
+  font-style: italic;
+  font-size: 0.88em;
+  color: var(--muted);
+  text-align: center;
+  margin-top: 6px;
+}
+
+caption {
+  font-style: italic;
+  font-size: 0.88em;
+  color: var(--muted);
+  caption-side: top;
+  text-align: left;
+  padding-bottom: 6px;
+}
+
+/* ── Code blocks ───────────────────────────────────────────── */
+pre {
+  border-left: 3px solid var(--accent);
+  background-color: #f7f9fb;
+  border-radius: 0 4px 4px 0;
+  font-size: 0.9em;
+}
+
+/* ── Inline code ────────────────────────────────────────────── */
+code:not(pre code) {
+  background-color: var(--light-blue);
+  color: var(--primary);
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 0.88em;
+}
+
+/* ── Blockquotes ────────────────────────────────────────────── */
+blockquote {
+  border-left: 4px solid var(--accent);
+  background-color: #f0f7fd;
+  padding: 0.75em 1.2em;
+  margin: 1.2em 0;
+  border-radius: 0 4px 4px 0;
+  color: var(--primary);
+  font-style: normal;
+}
+
+/* ── Horizontal rules ──────────────────────────────────────── */
+hr {
+  border: none;
+  border-top: 2px solid var(--light-blue);
+  margin: 2em 0;
+}
