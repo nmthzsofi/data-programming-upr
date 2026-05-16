@@ -106,9 +106,9 @@ caption {
   font-style: italic;
   font-size: 0.88em;
   color: var(--muted);
-  caption-side: top;
+  caption-side: bottom;
   text-align: left;
-  padding-bottom: 6px;
+  padding-top: 6px;
 }
 
 /* ── Code blocks ───────────────────────────────────────────── */

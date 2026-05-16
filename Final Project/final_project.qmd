@@ -85,6 +85,27 @@ The dataset contains 10,015 observations and seven variables. The table below de
 | `consensus` | Expert Consensus | Agreement among multiple dermatologists based on dermoscopic examination. |
 | `confocal` | Reflectance Confocal Microscopy | Non-invasive optical imaging providing near-histological resolution. |
 
+### The Pixel Dataset: `hmnist_8_8_L.csv`
+
+A second dataset is used later in the analysis for image-level brightness comparisons. `hmnist_8_8_L.csv` [@kaggle2018] contains a flattened pixel representation of each dermatoscopic image, resized to 8×8 grayscale thumbnails.
+
+```{r pixel-head}
+#| warning: false
+#| message: false
+
+pixel_data <- read_csv("data/hmnist_8_8_L.csv", show_col_types = FALSE)
+head(pixel_data)
+```
+
+The dataset contains 10,015 rows — one per image, in the same order as the metadata — and 65 columns:
+
+| Variable | Description |
+|----------|-------------|
+| `pixel0000` – `pixel0063` | Sixty-four integer values (0–255) representing the grayscale intensity of each cell in the flattened 8×8 image grid, read left-to-right, top-to-bottom. |
+| `label` | A numeric code identifying the diagnosis category (0–6), corresponding to the same seven classes as the `dx` variable in the metadata. |
+
+Because both files share the same row order, the two datasets can be aligned by adding a sequential row identifier to each and combining them with `inner_join()`. This join is performed in the Transformation section, where the pixel columns are used to compute a per-image mean brightness value that is then summarised by diagnosis.
+
 ---
 
 ## Transformation of data
@@ -219,7 +240,7 @@ Basal cell carcinoma (bcc) displays the highest mean image brightness (168.1), f
 
 ## Exploratory data analysis
 
-Five visualisations are produced with ggplot2 [@wickham2016], each using a different plot type to highlight a distinct aspect of the dataset.
+Seven visualisations are produced with ggplot2 [@wickham2016], each using a different plot type to highlight a distinct aspect of the dataset.
 
 ### Figure 1: Frequency Distribution of Diagnostic Categories
 
@@ -289,7 +310,10 @@ metadata |>
   complete(dx, localization, fill = list(count = 0)) |>
   ggplot(aes(x = localization, y = dx, fill = count)) +
   geom_tile(colour = "white", linewidth = 0.35) +
+  geom_text(aes(label = ifelse(count == 0, "", count), colour = count > 800),
+            size = 2.4, show.legend = FALSE) +
   scale_fill_viridis_c(name = "Count", option = "plasma") +
+  scale_colour_manual(values = c("TRUE" = "#111111", "FALSE" = "white"), guide = "none") +
   labs(
     title = "Lesion Localisation by Diagnosis Type",
     x     = "Body Region",
@@ -303,12 +327,87 @@ metadata |>
   )
 ```
 
-Nevus (nv) dominates nearly every body region, most prominently on the back and lower extremity. Benign keratosis-like lesions (bkl) show strong concentration on the back. Melanoma (mel) is notably frequent on the lower extremity relative to other diagnoses. Vascular lesions (vasc) show a restricted geographic spread, appearing primarily on the face and lower extremity. Several diagnosis–region combinations have zero or near-zero counts (dark tiles), highlighting that some conditions have marked anatomical specificity.
+Melanoma (mel) records its highest case count on the back (324), with substantial representation on the upper extremity (213) and lower extremity (192). Benign keratosis-like lesions (bkl) are most concentrated on the face (319), followed by the back (202) and lower extremity (174). Basal cell carcinoma (bcc) follows a similar geographic pattern to bkl, with the back (186) and face (101) as its two leading regions. Dermatofibroma (df) is strongly concentrated on the lower extremity (82), with far fewer cases in any other region. Actinic keratosis (akiec) peaks on the face (113), with moderate representation on the lower and upper extremities (65 and 62 respectively). Vascular lesions (vasc) are dispersed at low counts across all regions, with the highest cell values on the trunk (31) and abdomen (27).
 
-### Figure 4: Mean Image Brightness by Diagnosis (Dot Plot with Error Bars)
+### Figures 4 & 5: Localisation by Diagnosis — Percentage Distributions
+
+The two heatmaps below show the same data normalised by row (left) and by column (right). Row-wise normalisation reveals how each diagnosis is distributed across body regions; column-wise normalisation shows what share of each body region each diagnosis accounts for.
+
+::::: {.columns}
+
+:::: {.column width="50%"}
+
+```{r fig-row-pct}
+#| fig-cap: "Figure 4. Row-wise percentage distribution: within each diagnostic category, the percentage of cases appearing in each body region. Cells below 1% are unlabelled."
+
+metadata |>
+  group_by(dx, localization) |>
+  summarise(count = n(), .groups = "drop") |>
+  complete(dx, localization, fill = list(count = 0)) |>
+  group_by(dx) |>
+  mutate(pct = round(count / sum(count) * 100, 1)) |>
+  ungroup() |>
+  ggplot(aes(x = localization, y = dx, fill = pct)) +
+  geom_tile(colour = "white", linewidth = 0.35) +
+  geom_text(aes(label = ifelse(pct < 1, "", paste0(pct, "%"))),
+            size = 1.9, colour = "white") +
+  scale_fill_viridis_c(name = "Row %", option = "plasma") +
+  labs(
+    title = "Row-Wise %\n(within diagnosis)",
+    x     = "Body Region",
+    y     = "Diagnosis Code"
+  ) +
+  theme_minimal(base_size = 9) +
+  theme(
+    plot.title  = element_text(face = "bold", colour = "#1a5276", size = 9),
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 6),
+    panel.grid  = element_blank()
+  )
+```
+
+Dermatofibroma (df) is the only category with a clearly dominant body region: 71.3% of all df cases appear on the lower extremity. All other diagnostic categories are more broadly distributed, with no single body region accounting for more than approximately 30% of any given diagnosis. This limits the usefulness of localisation as a standalone classifier, with df being the notable exception.
+
+::::
+
+:::: {.column width="50%"}
+
+```{r fig-col-pct}
+#| fig-cap: "Figure 5. Column-wise dominance: each cell is coloured by diagnostic category (7 colours for 7 diagnoses) with opacity scaled to the count relative to the maximum within that body region column. The most opaque cell in each column is the dominant diagnosis for that location."
+
+metadata |>
+  group_by(dx, localization) |>
+  summarise(count = n(), .groups = "drop") |>
+  complete(dx, localization, fill = list(count = 0)) |>
+  group_by(localization) |>
+  mutate(alpha_val = count / max(count)) |>
+  ungroup() |>
+  ggplot(aes(x = localization, y = dx, fill = dx, alpha = alpha_val)) +
+  geom_tile(colour = "white", linewidth = 0.35) +
+  scale_fill_brewer(palette = "Set1", name = "Diagnosis") +
+  scale_alpha_continuous(range = c(0.05, 1), guide = "none") +
+  labs(
+    title = "Column-Wise Dominance\n(within body region)",
+    x     = "Body Region",
+    y     = "Diagnosis Code"
+  ) +
+  theme_minimal(base_size = 9) +
+  theme(
+    plot.title  = element_text(face = "bold", colour = "#1a5276", size = 9),
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 6),
+    panel.grid  = element_blank()
+  )
+```
+
+Nevus (nv) reaches full opacity in every body region, confirming its dominance across all locations. Among minority categories, dermatofibroma (df) is the most visually distinctive: its lower extremity cell is the most saturated of any non-nv diagnosis across all columns, consistent with Figure 4. No other minority category achieves strong column dominance in any single region, suggesting that localisation is a useful secondary signal primarily for df.
+
+::::
+
+:::::
+
+### Figure 6: Mean Image Brightness by Diagnosis (Dot Plot with Error Bars)
 
 ```{r fig-brightness}
-#| fig-cap: "Figure 4. Mean pixel brightness of 8×8 grayscale image thumbnails for each diagnostic category. Points show the mean; vertical lines extend one standard error of the mean above and below. Brightness is measured on a 0–255 scale. Data from the joined dataset produced in Table 3."
+#| fig-cap: "Figure 6. Mean pixel brightness of 8×8 grayscale image thumbnails for each diagnostic category. Points show the mean; vertical lines extend one standard error of the mean above and below. Brightness is measured on a 0–255 scale. Data from the joined dataset produced in Table 3."
 
 joined_data |>
   group_by(dx) |>
@@ -339,10 +438,10 @@ joined_data |>
 
 Basal cell carcinoma (bcc) displays the highest mean image brightness (168.1), closely followed by dermatofibroma (df, 166.0) and vascular lesions (vasc, 164.8). Melanoma (mel, 150.5) and benign keratosis-like lesions (bkl, 151.7) show the lowest mean brightness values. The differences between the highest and lowest groups span approximately 17 brightness units on a 0–255 scale. Basal cell carcinoma lesions tend to appear pale or pearlescent in dermoscopic images, which is consistent with their higher pixel brightness in greyscale thumbnails. Melanoma, by contrast, often exhibits darker pigmentation, consistent with its lower brightness values.
 
-### Figure 5: Lesion Localisation Frequency (Lollipop Chart)
+### Figure 7: Lesion Localisation Frequency (Lollipop Chart)
 
 ```{r fig-lollipop}
-#| fig-cap: "Figure 5. Lollipop chart showing the number of cases per anatomical body region, ordered by frequency. The percentage label at the end of each segment indicates the proportion of all cases in the dataset. Cases with unknown localisation (n = 234) are excluded."
+#| fig-cap: "Figure 7. Lollipop chart showing the number of cases per anatomical body region, ordered by frequency. The percentage label at the end of each segment indicates the proportion of all cases in the dataset. Cases with unknown localisation (n = 234) are excluded."
 
 metadata |>
   filter(localization != "unknown") |>
@@ -393,7 +492,17 @@ This analysis characterised the HAM10000 dataset [@tschandl2018] across multiple
 
 **Localisation.** Lesions are concentrated on the back and lower extremities, reflecting the influence of sun exposure on lesion development. Some categories show marked geographic specificity, as evident in the heatmap.
 
-Overall, the HAM10000 dataset is rich and heterogeneous. Its structural properties — including class imbalance, demographic gradients, variable diagnostic confirmation quality, and image-level variation — make it a complex but informative resource for the study of dermatoscopic skin lesions. Future work could leverage the full-resolution image data alongside the metadata for more detailed investigation.
+Overall, the HAM10000 dataset is rich and heterogeneous. Its structural properties — including class imbalance, demographic gradients, variable diagnostic confirmation quality, and image-level variation — make it a complex but informative resource for the study of dermatoscopic skin lesions.
+
+**Relevance for machine learning.** The patterns identified in this analysis have direct implications for the development of automated image recognition and classification algorithms for skin lesion diagnosis. The findings suggest a natural feature hierarchy that could inform a sequential classification pipeline:
+
+1. **Image brightness** as a first-pass filter. Even at the coarse resolution of 8×8 grayscale thumbnails, mean pixel brightness differs measurably across diagnostic categories (a range of approximately 17 units on a 0–255 scale). In a full-resolution pipeline, richer image-derived features — texture, colour distribution, border regularity — would provide substantially stronger signal. Brightness serves as an interpretable proxy for the darker pigmentation associated with melanoma versus the paler appearance of basal cell carcinoma and dermatofibroma.
+
+2. **Patient age** as a demographic refinement layer. Age distributions differ sharply across categories: actinic keratosis and basal cell carcinoma are concentrated in patients over 60, while nevus spans all ages and melanoma shows a broad middle-aged distribution. After an initial image-based shortlist, age can meaningfully narrow the differential diagnosis and should be treated as a strong secondary feature.
+
+3. **Anatomical localisation** as a final geographic check. As shown in Figures 4 and 5, localisation is a weak classifier for most categories, but dermatofibroma is a clear exception: 71.3% of df cases occur on the lower extremity. A pipeline that reaches an ambiguous result on brightness and age could use localisation as a tie-breaking signal, particularly when dermatofibroma is among the candidate diagnoses.
+
+This layered approach mirrors how experienced clinicians integrate multiple sources of evidence, and provides a principled framework for feature selection and model interpretability in dermatoscopic classification tasks.
 
 ---
 
